@@ -138,7 +138,11 @@ func TestServiceReply_AutoSubmitPending(t *testing.T) {
 		case path == "repos/octo/demo/pulls/7/comments/5/replies" && method == "POST":
 			attempt++
 			if attempt == 1 {
-				return &ghcli.APIError{StatusCode: 422, Message: "pending review"}
+				return &ghcli.APIError{
+					StatusCode: 422,
+					Message:    "gh: Validation Failed (HTTP 422)",
+					Body:       `{"message":"Validation Failed","errors":[{"message":"user_id can only have one pending review per pull request"}]}`,
+				}
 			}
 			return assign(result, map[string]interface{}{"id": 123, "body": "ok"})
 		default:
@@ -159,7 +163,11 @@ func TestServiceReply_PendingMissing(t *testing.T) {
 	api.restFunc = func(method, path string, params map[string]string, body interface{}, result interface{}) error {
 		switch path {
 		case "repos/octo/demo/pulls/7/comments/5/replies":
-			return &ghcli.APIError{StatusCode: 422, Message: "pending review"}
+			return &ghcli.APIError{
+				StatusCode: 422,
+				Message:    "gh: Validation Failed (HTTP 422)",
+				Body:       `{"message":"Validation Failed","errors":[{"message":"user_id can only have one pending review per pull request"}]}`,
+			}
 		case "user":
 			return assign(result, map[string]interface{}{"login": "octocat"})
 		case "repos/octo/demo/pulls/7/reviews":

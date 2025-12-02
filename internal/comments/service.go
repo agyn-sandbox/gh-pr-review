@@ -92,7 +92,7 @@ func (s *Service) Reply(pr resolver.Identity, opts ReplyOptions) (json.RawMessag
 	}
 
 	apiErr := &ghcli.APIError{}
-	if !errors.As(err, &apiErr) || apiErr.StatusCode != 422 || !strings.Contains(strings.ToLower(apiErr.Message), "pending review") {
+	if !errors.As(err, &apiErr) || apiErr.StatusCode != 422 || !apiErr.ContainsLower("pending review") {
 		return nil, err
 	}
 

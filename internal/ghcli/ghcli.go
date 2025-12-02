@@ -27,6 +27,7 @@ type APIError struct {
 	StatusCode int
 	Message    string
 	Stderr     string
+	Body       string
 	Err        error
 }
 
@@ -41,15 +42,39 @@ func (e *APIError) Unwrap() error {
 	return e.Err
 }
 
+// ContainsLower reports whether any captured message fields contain the target substring (case-insensitive).
+func (e *APIError) ContainsLower(target string) bool {
+	if target == "" {
+		return false
+	}
+	needle := strings.ToLower(target)
+	if strings.Contains(strings.ToLower(e.Message), needle) {
+		return true
+	}
+	if strings.Contains(strings.ToLower(e.Body), needle) {
+		return true
+	}
+	if strings.Contains(strings.ToLower(e.Stderr), needle) {
+		return true
+	}
+	return false
+}
+
 var statusRE = regexp.MustCompile(`HTTP\s+(\d{3})\b`)
 
-func wrapError(err error, stderr string) error {
+func wrapError(err error, stdout []byte, stderr string) error {
 	message := strings.TrimSpace(stderr)
 	if message == "" {
 		message = err.Error()
 	}
 
 	apiErr := &APIError{Message: message, Stderr: stderr, Err: err}
+	if len(stdout) > 0 {
+		apiErr.Body = strings.TrimSpace(string(stdout))
+		if apiErr.Message == "" {
+			apiErr.Message = apiErr.Body
+		}
+	}
 	if matches := statusRE.FindStringSubmatch(stderr); len(matches) == 2 {
 		if code, convErr := strconv.Atoi(matches[1]); convErr == nil {
 			apiErr.StatusCode = code
@@ -84,7 +109,7 @@ func (c *Client) REST(method, path string, params map[string]string, body interf
 
 	stdout, stderr, err := runGh(args, stdinData)
 	if err != nil {
-		return wrapError(err, stderr)
+		return wrapError(err, stdout, stderr)
 	}
 
 	if result == nil {
@@ -120,7 +145,7 @@ func (c *Client) GraphQL(query string, variables map[string]interface{}, result 
 
 	stdout, stderr, err := runGh(args, data)
 	if err != nil {
-		return wrapError(err, stderr)
+		return wrapError(err, stdout, stderr)
 	}
 
 	if result == nil {
@@ -147,7 +172,7 @@ func runGh(args []string, stdin []byte) ([]byte, string, error) {
 
 	err := cmd.Run()
 	if err != nil {
-		return nil, stderr.String(), err
+		return stdout.Bytes(), stderr.String(), err
 	}
 
 	return stdout.Bytes(), stderr.String(), nil
