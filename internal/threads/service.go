@@ -75,7 +75,7 @@ func (s *Service) List(pr resolver.Identity, opts ListOptions) ([]Thread, error)
 			continue
 		}
 
-		mine := node.ViewerCanResolve
+		mine := node.ViewerCanResolve || node.ViewerCanUnresolve
 		var (
 			latest   time.Time
 			hasStamp bool

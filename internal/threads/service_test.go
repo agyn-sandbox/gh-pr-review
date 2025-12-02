@@ -121,6 +121,67 @@ func TestServiceListFiltersAndSort(t *testing.T) {
 	assert.Equal(t, 42, *entry.Line)
 }
 
+func TestServiceListMineIncludesUnresolvePermission(t *testing.T) {
+	svc := &Service{}
+	svc.API = &fakeAPI{
+		restFunc: restStub(t, "octo", "demo", "octo/demo", 5, "PR_node", nil),
+		graphqlFunc: func(query string, variables map[string]interface{}, result interface{}) error {
+			require.Equal(t, listThreadsQuery, query)
+			require.Equal(t, "PR_node", variables["id"])
+
+			updated := time.Date(2025, 12, 3, 12, 0, 0, 0, time.UTC)
+			payload := map[string]interface{}{
+				"node": map[string]interface{}{
+					"reviewThreads": map[string]interface{}{
+						"nodes": []map[string]interface{}{
+							{
+								"id":                 "T-resolved",
+								"isResolved":         true,
+								"isOutdated":         false,
+								"path":               "internal/file.go",
+								"viewerCanResolve":   false,
+								"viewerCanUnresolve": true,
+								"comments": map[string]interface{}{
+									"nodes": []map[string]interface{}{
+										{
+											"viewerDidAuthor": false,
+											"updatedAt":       updated,
+											"databaseId":      201,
+										},
+									},
+								},
+							},
+							{
+								"id":                 "T-ignored",
+								"isResolved":         true,
+								"isOutdated":         false,
+								"path":               "internal/ignore.go",
+								"viewerCanResolve":   false,
+								"viewerCanUnresolve": false,
+								"comments": map[string]interface{}{
+									"nodes": []map[string]interface{}{},
+								},
+							},
+						},
+						"pageInfo": map[string]interface{}{
+							"hasNextPage": false,
+							"endCursor":   "",
+						},
+					},
+				},
+			}
+
+			return assign(result, payload)
+		},
+	}
+
+	identity := resolver.Identity{Owner: "octo", Repo: "demo", Number: 5}
+	threads, err := svc.List(identity, ListOptions{MineOnly: true})
+	require.NoError(t, err)
+	require.Len(t, threads, 1)
+	assert.Equal(t, "T-resolved", threads[0].ThreadID)
+}
+
 func TestResolveRequiresPermission(t *testing.T) {
 	svc := &Service{}
 	svc.API = &fakeAPI{
