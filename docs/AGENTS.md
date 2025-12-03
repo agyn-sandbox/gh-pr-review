@@ -34,37 +34,28 @@ gh pr-review comments ids --review_id 3531807471 --limit 20 owner/repo#42
 
 # Reply to a comment by database identifier
 gh pr-review comments reply \
-  --comment-id 2582545223 \
+  --comment-id <comment-id> \
   --body "Thanks for catching this" \
   owner/repo#42
 ```
 
-Chained sequence:
-
-```sh
-# 1) Capture the latest review ID for octocat
-review_id=$(gh pr-review review latest-id --reviewer octocat owner/repo#42 | jq '.id')
-
-# 2) List comments and pick one
-comment_id=$(gh pr-review comments ids --review_id "$review_id" owner/repo#42 | jq '.[0].id')
-
-# 3) Reply to that comment
-gh pr-review comments reply --comment-id "$comment_id" --body "Updated." owner/repo#42
-```
+Inspect the JSON returned by `comments ids`, select the desired `id`, and supply
+that value as `<comment-id>` when invoking `comments reply`.
 
 ## 3. Resolve or reopen discussion threads
 
 ```sh
 # Locate the thread for a specific comment; emits { "id", "isResolved" }
-thread_json=$(gh pr-review threads find --comment_id 2582545223 owner/repo#42)
-thread_id=$(echo "$thread_json" | jq -r '.id')
+gh pr-review threads find --comment_id 2582545223 owner/repo#42
 
 # Resolve the thread
-gh pr-review threads resolve --thread-id "$thread_id" owner/repo#42
+gh pr-review threads resolve --thread-id <thread-id> owner/repo#42
 
 # Reopen the thread if needed
-gh pr-review threads unresolve --thread-id "$thread_id" owner/repo#42
+gh pr-review threads unresolve --thread-id <thread-id> owner/repo#42
 ```
 
-The thread commands also accept `--comment-id` to resolve directly from a REST
-comment identifier; each response reflects only the fields returned by GitHub.
+Take the `id` returned by `threads find` and reuse it as `<thread-id>` with
+`threads resolve` or `threads unresolve`. Responses remain JSON-only with
+GitHub-aligned field names and include only fields surfaced by the upstream
+APIs. Threads can also be resolved directly via `--comment-id` if preferred.
