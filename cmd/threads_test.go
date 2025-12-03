@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestThreadsListCommandJSON(t *testing.T) {
+func TestThreadsListCommandOutputsJSON(t *testing.T) {
 	originalFactory := apiClientFactory
 	defer func() { apiClientFactory = originalFactory }()
 
@@ -87,7 +87,7 @@ func TestThreadsListCommandJSON(t *testing.T) {
 	stderr := &bytes.Buffer{}
 	root.SetOut(stdout)
 	root.SetErr(stderr)
-	root.SetArgs([]string{"threads", "list", "--json", "--unresolved", "--mine", "octo/demo#5"})
+	root.SetArgs([]string{"threads", "list", "--unresolved", "--mine", "octo/demo#5"})
 
 	err := root.Execute()
 	require.NoError(t, err)
@@ -161,7 +161,7 @@ func TestThreadsResolveCommandByCommentID(t *testing.T) {
 	stderr := &bytes.Buffer{}
 	root.SetOut(stdout)
 	root.SetErr(stderr)
-	root.SetArgs([]string{"threads", "resolve", "--json", "--comment-id", "88", "octo/demo#9"})
+	root.SetArgs([]string{"threads", "resolve", "--comment-id", "88", "octo/demo#9"})
 
 	err := root.Execute()
 	require.NoError(t, err)
@@ -225,7 +225,7 @@ func TestThreadsUnresolveCommandByThreadID(t *testing.T) {
 	stderr := &bytes.Buffer{}
 	root.SetOut(stdout)
 	root.SetErr(stderr)
-	root.SetArgs([]string{"threads", "unresolve", "--json", "--thread-id", "T_thread", "octo/demo#9"})
+	root.SetArgs([]string{"threads", "unresolve", "--thread-id", "T_thread", "octo/demo#9"})
 
 	err := root.Execute()
 	require.NoError(t, err)
@@ -291,7 +291,7 @@ func TestThreadsUnresolveRequiresIdentifier(t *testing.T) {
 	root := newRootCommand()
 	root.SetOut(&bytes.Buffer{})
 	root.SetErr(&bytes.Buffer{})
-	root.SetArgs([]string{"threads", "unresolve", "--json", "octo/demo#2"})
+	root.SetArgs([]string{"threads", "unresolve", "octo/demo#2"})
 
 	err := root.Execute()
 	require.Error(t, err)
@@ -302,20 +302,9 @@ func TestThreadsResolveRequiresExclusiveSelector(t *testing.T) {
 	root := newRootCommand()
 	root.SetOut(&bytes.Buffer{})
 	root.SetErr(&bytes.Buffer{})
-	root.SetArgs([]string{"threads", "resolve", "--json", "--thread-id", "T1", "--comment-id", "2", "octo/demo#1"})
+	root.SetArgs([]string{"threads", "resolve", "--thread-id", "T1", "--comment-id", "2", "octo/demo#1"})
 
 	err := root.Execute()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "either --thread-id or --comment-id")
-}
-
-func TestThreadsListRequiresJSONFlag(t *testing.T) {
-	root := newRootCommand()
-	root.SetOut(&bytes.Buffer{})
-	root.SetErr(&bytes.Buffer{})
-	root.SetArgs([]string{"threads", "list", "octo/demo#5"})
-
-	err := root.Execute()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "--json")
 }

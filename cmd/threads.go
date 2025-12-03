@@ -36,16 +36,12 @@ func newThreadsListCommand() *cobra.Command {
 			if len(args) > 0 {
 				opts.Selector = args[0]
 			}
-			if !opts.JSON {
-				return errors.New("specify --json to select JSON output")
-			}
 			return runThreadsList(cmd, opts)
 		},
 	}
 
 	cmd.Flags().BoolVar(&opts.UnresolvedOnly, "unresolved", false, "Filter to unresolved threads only")
 	cmd.Flags().BoolVar(&opts.MineOnly, "mine", false, "Show only threads involving or resolvable by the viewer")
-	cmd.Flags().BoolVar(&opts.JSON, "json", false, "Emit machine-readable JSON output")
 	cmd.PersistentFlags().StringVarP(&opts.Repo, "repo", "R", "", "Repository in 'owner/repo' format")
 	cmd.PersistentFlags().IntVar(&opts.Pull, "pr", 0, "Pull request number")
 
@@ -58,7 +54,6 @@ type threadsListOptions struct {
 	Selector       string
 	UnresolvedOnly bool
 	MineOnly       bool
-	JSON           bool
 }
 
 func runThreadsList(cmd *cobra.Command, opts *threadsListOptions) error {
@@ -111,9 +106,6 @@ func newThreadsMutationCommand(resolve bool) *cobra.Command {
 			if len(args) > 0 {
 				opts.Selector = args[0]
 			}
-			if !opts.JSON {
-				return errors.New("specify --json to select JSON output")
-			}
 			if err := opts.Validate(); err != nil {
 				return err
 			}
@@ -126,7 +118,6 @@ func newThreadsMutationCommand(resolve bool) *cobra.Command {
 
 	cmd.Flags().StringVar(&opts.ThreadID, "thread-id", "", "GraphQL node ID for the review thread")
 	cmd.Flags().Int64Var(&opts.CommentID, "comment-id", 0, "Pull request review comment identifier")
-	cmd.Flags().BoolVar(&opts.JSON, "json", false, "Emit machine-readable JSON output")
 	cmd.PersistentFlags().StringVarP(&opts.Repo, "repo", "R", "", "Repository in 'owner/repo' format")
 	cmd.PersistentFlags().IntVar(&opts.Pull, "pr", 0, "Pull request number")
 
@@ -139,7 +130,6 @@ type threadsMutationOptions struct {
 	Selector  string
 	ThreadID  string
 	CommentID int64
-	JSON      bool
 }
 
 func (o *threadsMutationOptions) Validate() error {
