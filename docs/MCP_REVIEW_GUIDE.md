@@ -48,7 +48,7 @@ Additional Rule:
 
 ## 4. Review workflow summary
 1) `gh pr review --start -R owner/repo --pr N` – start a new pending review.
-2) `gh pr review --add-comment ...` – add one or more inline or file-level comments.
+2) `gh pr review --add-comment ...` – add inline or file-level comments (each body begins with [major]/[minor]/[nit]).
 3) `gh pr review --submit ...` – finalize with `APPROVE`, `REQUEST_CHANGES`, or `COMMENT`.
 
 ## Inline comments: list IDs and reply
