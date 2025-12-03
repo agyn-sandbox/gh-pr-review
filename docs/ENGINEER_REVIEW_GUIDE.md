@@ -11,6 +11,17 @@
 - Output includes `id`, `body`, `user`, timestamps, `html_url`, and `path/line` when available
 - Pagination flags: `--per_page`, `--page`, `--limit`
 
+### Get latest review ID
+- Latest by reviewer: `gh pr-review review latest-id -R owner/repo --pr N --reviewer reviewer_login`
+- Output fields: `{ id, user{login,id}, submitted_at, state, author_association, html_url }`
+- Tip: Pass your own login to fetch the most recent review you submitted on that PR
+
+### List comments by review ID
+- `gh pr-review comments ids owner/repo#N --review_id <id>`
+- Pagination: `--per_page`, `--page`, `--limit`
+- Output repeats `id`, `body`, `user`, timestamps, `html_url`, `path`, `line` when present
+- After retrieving the desired `id`, feed it into `gh pr-review comments reply ...`
+
 ## Reply to an inline comment
 1. List comments with one of the commands above and capture the desired `id`
 2. Reply: `gh pr-review comments reply -R owner/repo --pr N --comment-id 2582545223 --body "Acknowledged; will update."`
