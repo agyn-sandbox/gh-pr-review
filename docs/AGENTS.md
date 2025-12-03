@@ -1,19 +1,10 @@
 # Agent Usage with `gh pr-review`
 
-This guide provides ready-to-run prompts for agents or scripted workflows that
-use the `gh pr-review` extension. All commands output JSON with field names
-matching the GitHub REST/GraphQL APIs and include only data present in the
-source responses (no null placeholders).
+This guide provides ready-to-run prompts for scripted or agent-driven use of
+`gh pr-review`. All commands emit JSON with REST/GraphQL-aligned field names and
+include only values present in upstream responses (no null placeholders).
 
-## Setup and Selector Patterns
-
-- Include the repository via `-R owner/repo`, a pull request URL, or the
-  shorthand `owner/repo#123`.
-- The extension works from any directory; no local git checkout is required.
-- Authentication and host selection reuse the ambient `gh` CLI configuration,
-  including `GH_HOST` for GitHub Enterprise Server.
-
-## Review Workflow (E2E)
+## 1. Review a pull request end-to-end
 
 ```sh
 # Start or resume a pending review for PR 42
@@ -27,43 +18,53 @@ gh pr-review review --add-comment \
   --body "nit: use helper" \
   owner/repo#42
 
-# Submit the review with a chosen event
+# Submit the review (COMMENT | APPROVE | REQUEST_CHANGES)
 gh pr-review review --submit \
   --review-id R_kwM123456 \
-  --event COMMENT \
+  --event APPROVE \
   --body "Looks good" \
   owner/repo#42
 ```
 
-## Comments
+## 2. Read and reply to inline comments
 
 ```sh
-# List comment identifiers (with bodies) for a review
-gh pr-review comments ids --review_id 3531807471 --limit 50 owner/repo#42
+# List comment identifiers (IDs + text) for a specific review
+gh pr-review comments ids --review_id 3531807471 --limit 20 owner/repo#42
 
-# Reply to a comment by identifier (auto-submits pending reviews if needed)
-gh pr-review comments reply --comment-id 987654 --body "Thanks" owner/repo#42
+# Reply to a comment by database identifier
+gh pr-review comments reply \
+  --comment-id 2582545223 \
+  --body "Thanks for catching this" \
+  owner/repo#42
 ```
 
-## Threads
+Chained sequence:
 
 ```sh
-# Find a thread by comment ID or thread ID; emits { "id", "isResolved" }
- gh pr-review threads find --comment_id 2582545223 owner/repo#42
+# 1) Capture the latest review ID for octocat
+review_id=$(gh pr-review review latest-id --reviewer octocat owner/repo#42 | jq '.id')
 
-# List unresolved threads (JSON array of threads)
- gh pr-review threads list --unresolved owner/repo#42
+# 2) List comments and pick one
+comment_id=$(gh pr-review comments ids --review_id "$review_id" owner/repo#42 | jq '.[0].id')
 
-# Resolve or unresolve a thread by node ID or comment ID
- gh pr-review threads resolve --thread-id R_ywDoABC123 owner/repo#42
- gh pr-review threads resolve --comment-id 987654 owner/repo#42
- gh pr-review threads unresolve --thread-id R_ywDoABC123 owner/repo#42
+# 3) Reply to that comment
+gh pr-review comments reply --comment-id "$comment_id" --body "Updated." owner/repo#42
 ```
 
-## Error Handling and GHES Notes
+## 3. Resolve or reopen discussion threads
 
-- Commands surface upstream API errors directly and abort on unexpected states.
-- Thread operations fall back to REST lookups when GraphQL fields are absent,
-  enabling compatibility with GitHub Enterprise Server.
-- Selector parsing normalizes URLs, PR numbers, and shorthand patterns; invalid
-  selectors return actionable error messages.
+```sh
+# Locate the thread for a specific comment; emits { "id", "isResolved" }
+thread_json=$(gh pr-review threads find --comment_id 2582545223 owner/repo#42)
+thread_id=$(echo "$thread_json" | jq -r '.id')
+
+# Resolve the thread
+gh pr-review threads resolve --thread-id "$thread_id" owner/repo#42
+
+# Reopen the thread if needed
+gh pr-review threads unresolve --thread-id "$thread_id" owner/repo#42
+```
+
+The thread commands also accept `--comment-id` to resolve directly from a REST
+comment identifier; each response reflects only the fields returned by GitHub.
