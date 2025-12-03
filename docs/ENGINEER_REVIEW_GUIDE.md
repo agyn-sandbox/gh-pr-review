@@ -15,6 +15,7 @@
 - Latest by reviewer: `gh pr-review review latest-id -R owner/repo --pr N --reviewer reviewer_login`
 - Output fields: `{ id, user{login,id}, submitted_at, state, author_association, html_url }`
 - Tip: Pass your own login to fetch the most recent review you submitted on that PR
+- Omit `--reviewer` to use the authenticated user (your login); latest is chosen by the max `submitted_at` among your submitted reviews
 
 ### List comments by review ID
 - `gh pr-review comments ids owner/repo#N --review_id <id>`
