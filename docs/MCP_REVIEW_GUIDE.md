@@ -3,6 +3,24 @@
 
 This workflow creates a pending review, adds one or more review comments (inline or file-level), and then submits the review with a final decision. All outputs are JSON-only by default; no `--json` flag is required.
 
+# Documentation: Using `gh` to Review Pull Requests
+> Use these commands to review pull requests in the repository via `gh`.
+
+## View PR details
+- Show PR title, description, and metadata
+  - `gh pr view <number>`
+- Show PR with all top-level comments
+  - `gh pr view <number> --comments`
+- View structured PR data as JSON
+  - Fields available for `--json` include: files, reviews, headRefOid, baseRefName, headRefName, author, body, comments
+  - `gh pr view <number> --json files,reviews,headRefOid --jq '.files[].path'`
+
+## Inspect changes
+- Show full diff of code changes
+  - `gh pr diff <number>`
+- Show only names of changed files
+  - `gh pr diff <number> --name-only`
+
 ## 1. Create a pending review
 Command:
 - `gh pr review --start -R owner/repo --pr N`
