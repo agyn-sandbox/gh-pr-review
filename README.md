@@ -4,6 +4,10 @@
 pull request review workflows. It adds helpers for listing review comments,
 replying to threads, and managing pending reviews without cloning repositories.
 
+- [Commands](#commands)
+- [Agent usage guide](#agent-usage-guide)
+- [Development](#development)
+
 ## Installation
 
 Install or upgrade directly from GitHub:
@@ -64,10 +68,60 @@ gh pr-review review --submit \
   owner/repo#42
 ```
 
+### Manage review threads
+
+List threads and filter by resolution state or participation. Output is always JSON:
+
+```sh
+# List unresolved threads you can resolve or participated in
+gh pr-review threads list --unresolved --mine owner/repo#42
+
+# Include all review threads for a pull request URL
+gh pr-review threads list https://github.com/owner/repo/pull/42
+```
+
+Resolve or unresolve threads using either the thread node ID or a REST
+comment identifier:
+
+```sh
+# Resolve by thread node ID
+gh pr-review threads resolve --thread-id R_ywDoABC123 owner/repo#42
+
+# Resolve by comment identifier (maps to thread automatically)
+gh pr-review threads resolve --comment-id 987654 owner/repo#42
+
+# Reopen a thread
+gh pr-review threads unresolve --thread-id R_ywDoABC123 owner/repo#42
+```
+
 All commands accept `-R owner/repo`, pull request URLs, or the `owner/repo#123`
 shorthand and do not require a local git checkout. Authentication and host
 resolution defer to the existing `gh` CLI configuration, including `GH_HOST` for
 GitHub Enterprise environments.
+
+### Helper commands for identifiers
+
+Emit minimal JSON for frequently needed identifiers:
+
+```sh
+# Locate the latest submitted review for a reviewer
+gh pr-review review latest-id --per_page 100 --page 1 --reviewer octocat owner/repo#42
+
+# List comment identifiers (with bodies) for a review
+gh pr-review comments ids --review_id 3531807471 --limit 50 owner/repo#42
+
+# Map a comment to its thread (or fetch by thread ID) with minimal schema
+gh pr-review threads find --comment_id 2582545223 owner/repo#42
+```
+
+Outputs are pure JSON with REST/GraphQL field names and include only fields that
+are present from the source APIs (no null placeholders). The `threads find`
+command always emits exactly `{ "id", "isResolved" }`.
+
+## Agent usage guide
+
+See [docs/AGENTS.md](docs/AGENTS.md) for agent-focused workflows, prompts, and
+best practices when invoking `gh pr-review` from automation.
 
 ## Development
 
