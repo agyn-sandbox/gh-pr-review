@@ -22,9 +22,9 @@ var ErrViewerLoginUnavailable = errors.New("viewer login unavailable")
 type ReviewState struct {
 	ID          string  `json:"id"`
 	State       string  `json:"state"`
-	SubmittedAt *string `json:"submitted_at"`
+	SubmittedAt *string `json:"submitted_at,omitempty"`
 	DatabaseID  *int64  `json:"database_id,omitempty"`
-	HTMLURL     string  `json:"html_url,omitempty"`
+	HTMLURL     *string `json:"html_url,omitempty"`
 }
 
 // ReviewThread represents an inline comment thread added to a pending review.
@@ -32,6 +32,7 @@ type ReviewThread struct {
 	ID         string `json:"id"`
 	Path       string `json:"path"`
 	IsOutdated bool   `json:"is_outdated"`
+	Line       *int   `json:"line,omitempty"`
 }
 
 // ThreadInput describes the inline comment details for AddThread.
@@ -63,12 +64,14 @@ func (s *Service) Start(pr resolver.Identity, commitOID string) (*ReviewState, e
 	if err != nil {
 		return nil, err
 	}
-	if commitOID == "" {
-		commitOID = headSHA
+
+	trimmedCommit := strings.TrimSpace(commitOID)
+	if trimmedCommit == "" {
+		trimmedCommit = headSHA
 	}
 
-	query := `mutation AddPullRequestReview($input: AddPullRequestReviewInput!) {
-  addPullRequestReview(input: $input) {
+	const mutation = `mutation($input:AddPullRequestReviewInput!){
+  addPullRequestReview(input:$input){
     pullRequestReview { id state submittedAt databaseId url }
   }
 }`
@@ -76,66 +79,85 @@ func (s *Service) Start(pr resolver.Identity, commitOID string) (*ReviewState, e
 	payload := map[string]interface{}{
 		"input": map[string]interface{}{
 			"pullRequestId": nodeID,
-			"commitOID":     commitOID,
+			"commitOID":     trimmedCommit,
 		},
 	}
 
-	var response struct {
-		Data struct {
-			AddPullRequestReview struct {
-				PullRequestReview struct {
-					ID          string  `json:"id"`
-					State       string  `json:"state"`
-					SubmittedAt *string `json:"submittedAt"`
-					DatabaseID  *int64  `json:"databaseId"`
-					URL         string  `json:"url"`
-				} `json:"pullRequestReview"`
-			} `json:"addPullRequestReview"`
-		} `json:"data"`
+	var resp struct {
+		AddPullRequestReview struct {
+			PullRequestReview struct {
+				ID          string  `json:"id"`
+				State       string  `json:"state"`
+				SubmittedAt *string `json:"submittedAt"`
+				DatabaseID  *int64  `json:"databaseId"`
+				URL         string  `json:"url"`
+			} `json:"pullRequestReview"`
+		} `json:"addPullRequestReview"`
 	}
 
-	if err := s.API.GraphQL(query, payload, &response); err != nil {
+	if err := s.API.GraphQL(mutation, payload, &resp); err != nil {
 		return nil, err
 	}
 
-	review := response.Data.AddPullRequestReview.PullRequestReview
-	state := ReviewState{
-		ID:          review.ID,
-		State:       review.State,
-		SubmittedAt: review.SubmittedAt,
-		DatabaseID:  review.DatabaseID,
-		HTMLURL:     strings.TrimSpace(review.URL),
+	prr := resp.AddPullRequestReview.PullRequestReview
+	trimmedID := strings.TrimSpace(prr.ID)
+	if trimmedID == "" {
+		return nil, fmt.Errorf("addPullRequestReview returned no review data")
 	}
+
+	state := ReviewState{ID: trimmedID, State: strings.TrimSpace(prr.State)}
+
+	if prr.SubmittedAt != nil {
+		trimmed := strings.TrimSpace(*prr.SubmittedAt)
+		if trimmed != "" {
+			state.SubmittedAt = &trimmed
+		}
+	}
+	if prr.DatabaseID != nil {
+		state.DatabaseID = prr.DatabaseID
+	}
+	if trimmedURL := strings.TrimSpace(prr.URL); trimmedURL != "" {
+		state.HTMLURL = &trimmedURL
+	}
+
 	return &state, nil
 }
 
 // AddThread adds an inline review comment thread to an existing pending review.
 func (s *Service) AddThread(pr resolver.Identity, input ThreadInput) (*ReviewThread, error) {
-	if input.ReviewID == "" {
+	trimmedID := strings.TrimSpace(input.ReviewID)
+	if trimmedID == "" {
 		return nil, errors.New("review id is required")
 	}
-	if input.Path == "" {
+	if !strings.HasPrefix(trimmedID, "PRR_") {
+		return nil, fmt.Errorf("invalid review id %q: must be a GraphQL node id", input.ReviewID)
+	}
+
+	trimmedPath := strings.TrimSpace(input.Path)
+	if trimmedPath == "" {
 		return nil, errors.New("path is required")
 	}
 	if input.Line <= 0 {
 		return nil, errors.New("line must be positive")
 	}
-	if input.Body == "" {
+
+	trimmedBody := strings.TrimSpace(input.Body)
+	if trimmedBody == "" {
 		return nil, errors.New("body is required")
 	}
 
-	query := `mutation AddPullRequestReviewThread($input: AddPullRequestReviewThreadInput!) {
-  addPullRequestReviewThread(input: $input) {
-    thread { id path isOutdated }
+	const mutation = `mutation($input:AddPullRequestReviewThreadInput!){
+  addPullRequestReviewThread(input:$input){
+    thread { id path isOutdated line }
   }
 }`
 
 	graphqlInput := map[string]interface{}{
-		"pullRequestReviewId": input.ReviewID,
-		"path":                input.Path,
+		"pullRequestReviewId": trimmedID,
+		"path":                trimmedPath,
 		"line":                input.Line,
 		"side":                input.Side,
-		"body":                input.Body,
+		"body":                trimmedBody,
 	}
 	if input.StartLine != nil {
 		graphqlInput["startLine"] = *input.StartLine
@@ -148,24 +170,33 @@ func (s *Service) AddThread(pr resolver.Identity, input ThreadInput) (*ReviewThr
 		"input": graphqlInput,
 	}
 
-	var response struct {
-		Data struct {
-			AddPullRequestReviewThread struct {
-				Thread struct {
-					ID         string `json:"id"`
-					Path       string `json:"path"`
-					IsOutdated bool   `json:"isOutdated"`
-				} `json:"thread"`
-			} `json:"addPullRequestReviewThread"`
-		} `json:"data"`
+	var resp struct {
+		AddPullRequestReviewThread struct {
+			Thread struct {
+				ID         string `json:"id"`
+				Path       string `json:"path"`
+				IsOutdated bool   `json:"isOutdated"`
+				Line       *int   `json:"line"`
+			} `json:"thread"`
+		} `json:"addPullRequestReviewThread"`
 	}
 
-	if err := s.API.GraphQL(query, payload, &response); err != nil {
+	if err := s.API.GraphQL(mutation, payload, &resp); err != nil {
 		return nil, err
 	}
 
-	thread := response.Data.AddPullRequestReviewThread.Thread
-	return &ReviewThread{ID: thread.ID, Path: thread.Path, IsOutdated: thread.IsOutdated}, nil
+	thread := resp.AddPullRequestReviewThread.Thread
+	trimmedThreadID := strings.TrimSpace(thread.ID)
+	trimmedThreadPath := strings.TrimSpace(thread.Path)
+	if trimmedThreadID == "" || trimmedThreadPath == "" {
+		return nil, errors.New("addPullRequestReviewThread returned incomplete thread data")
+	}
+
+	result := ReviewThread{ID: trimmedThreadID, Path: trimmedThreadPath, IsOutdated: thread.IsOutdated}
+	if thread.Line != nil {
+		result.Line = thread.Line
+	}
+	return &result, nil
 }
 
 // Submit finalizes a pending review with the given event and optional body.
@@ -220,7 +251,9 @@ func (s *Service) Submit(pr resolver.Identity, input SubmitInput) (*ReviewState,
 		State:       strings.TrimSpace(review.State),
 		SubmittedAt: submittedAt,
 		DatabaseID:  &review.ID,
-		HTMLURL:     strings.TrimSpace(review.HTMLURL),
+	}
+	if trimmed := strings.TrimSpace(review.HTMLURL); trimmed != "" {
+		state.HTMLURL = &trimmed
 	}
 	return &state, nil
 }
@@ -249,18 +282,36 @@ func (s *Service) currentViewer() (string, error) {
 }
 
 func (s *Service) pullRequestIdentifiers(pr resolver.Identity) (string, string, error) {
-	path := fmt.Sprintf("repos/%s/%s/pulls/%d", pr.Owner, pr.Repo, pr.Number)
-	var data struct {
-		NodeID string `json:"node_id"`
-		Head   struct {
-			SHA string `json:"sha"`
-		} `json:"head"`
+	const query = `query($owner:String!,$name:String!,$number:Int!){
+  repository(owner:$owner,name:$name){
+    pullRequest(number:$number){ id headRefOid }
+  }
+}`
+
+	variables := map[string]interface{}{
+		"owner":  pr.Owner,
+		"name":   pr.Repo,
+		"number": pr.Number,
 	}
-	if err := s.API.REST("GET", path, nil, nil, &data); err != nil {
+
+	var resp struct {
+		Repository struct {
+			PullRequest struct {
+				ID         string `json:"id"`
+				HeadRefOID string `json:"headRefOid"`
+			} `json:"pullRequest"`
+		} `json:"repository"`
+	}
+
+	if err := s.API.GraphQL(query, variables, &resp); err != nil {
 		return "", "", err
 	}
-	if data.NodeID == "" || data.Head.SHA == "" {
+
+	nodeID := strings.TrimSpace(resp.Repository.PullRequest.ID)
+	headSHA := strings.TrimSpace(resp.Repository.PullRequest.HeadRefOID)
+	if nodeID == "" || headSHA == "" {
 		return "", "", errors.New("pull request metadata incomplete")
 	}
-	return data.NodeID, data.Head.SHA, nil
+
+	return nodeID, headSHA, nil
 }

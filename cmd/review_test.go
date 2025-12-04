@@ -15,32 +15,40 @@ import (
 type obj = map[string]interface{}
 type objSlice = []map[string]interface{}
 
-func TestReviewStartCommand(t *testing.T) {
+func TestReviewStartCommand_GraphQLOnly(t *testing.T) {
 	originalFactory := apiClientFactory
 	defer func() { apiClientFactory = originalFactory }()
 
 	fake := &commandFakeAPI{}
-	fake.restFunc = func(method, path string, params map[string]string, body interface{}, result interface{}) error {
-		if path == "repos/octo/demo/pulls/7" {
-			payload := map[string]interface{}{"node_id": "PR1", "head": map[string]interface{}{"sha": "abc"}}
-			return assignJSON(result, payload)
-		}
-		return errors.New("unexpected path")
-	}
+	call := 0
 	fake.graphqlFunc = func(query string, variables map[string]interface{}, result interface{}) error {
-		payload := map[string]interface{}{
-			"data": map[string]interface{}{
-				"addPullRequestReview": map[string]interface{}{
-					"pullRequestReview": map[string]interface{}{
-						"id":         "RV1",
-						"state":      "PENDING",
-						"databaseId": 88,
-						"url":        "https://example.com/review/RV1",
+		call++
+		switch call {
+		case 1:
+			payload := map[string]interface{}{
+				"repository": map[string]interface{}{
+					"pullRequest": map[string]interface{}{
+						"id":         "PRR_node",
+						"headRefOid": "abc123",
 					},
 				},
-			},
+			}
+			return assignJSON(result, payload)
+		case 2:
+			payload := map[string]interface{}{
+				"addPullRequestReview": map[string]interface{}{
+					"pullRequestReview": map[string]interface{}{
+						"id":         "PRR_review",
+						"state":      "PENDING",
+						"databaseId": float64(88),
+						"url":        "https://example.com/review/PRR_review",
+					},
+				},
+			}
+			return assignJSON(result, payload)
+		default:
+			return errors.New("unexpected graphql invocation")
 		}
-		return assignJSON(result, payload)
 	}
 	apiClientFactory = func(host string) ghcli.API { return fake }
 
@@ -57,21 +65,36 @@ func TestReviewStartCommand(t *testing.T) {
 
 	var payload map[string]interface{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &payload))
-	assert.Equal(t, "RV1", payload["id"])
+	assert.Equal(t, "PRR_review", payload["id"])
+	assert.Equal(t, "PENDING", payload["state"])
 	assert.Equal(t, float64(88), payload["database_id"])
-	assert.Equal(t, "https://example.com/review/RV1", payload["html_url"])
+	assert.Equal(t, "https://example.com/review/PRR_review", payload["html_url"])
+	_, hasSubmitted := payload["submitted_at"]
+	assert.False(t, hasSubmitted)
+	assert.Equal(t, 2, call)
 }
 
-func TestReviewAddCommentCommand(t *testing.T) {
+func TestReviewAddCommentCommand_GraphQLOnly(t *testing.T) {
 	originalFactory := apiClientFactory
 	defer func() { apiClientFactory = originalFactory }()
 
 	fake := &commandFakeAPI{}
 	fake.graphqlFunc = func(query string, variables map[string]interface{}, result interface{}) error {
+		input, ok := variables["input"].(map[string]interface{})
+		require.True(t, ok)
+		require.Equal(t, "PRR_review", input["pullRequestReviewId"])
+		require.Equal(t, "scenario.md", input["path"])
+		require.Equal(t, 12, input["line"])
+		require.Equal(t, "RIGHT", input["side"])
+		require.Equal(t, "note", input["body"])
+
 		payload := map[string]interface{}{
-			"data": map[string]interface{}{
-				"addPullRequestReviewThread": map[string]interface{}{
-					"thread": map[string]interface{}{"id": "THREAD1", "path": "file.go", "isOutdated": false},
+			"addPullRequestReviewThread": map[string]interface{}{
+				"thread": map[string]interface{}{
+					"id":         "THREAD1",
+					"path":       "scenario.md",
+					"isOutdated": false,
+					"line":       12,
 				},
 			},
 		}
@@ -84,7 +107,7 @@ func TestReviewAddCommentCommand(t *testing.T) {
 	stderr := &bytes.Buffer{}
 	root.SetOut(stdout)
 	root.SetErr(stderr)
-	root.SetArgs([]string{"review", "--add-comment", "--review-id", "RV1", "--path", "file.go", "--line", "12", "--body", "note", "octo/demo#7"})
+	root.SetArgs([]string{"review", "--add-comment", "--review-id", "PRR_review", "--path", "scenario.md", "--line", "12", "--body", "note", "octo/demo#7"})
 
 	err := root.Execute()
 	require.NoError(t, err)
@@ -93,6 +116,29 @@ func TestReviewAddCommentCommand(t *testing.T) {
 	var payload map[string]interface{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &payload))
 	assert.Equal(t, "THREAD1", payload["id"])
+	assert.Equal(t, "scenario.md", payload["path"])
+	assert.Equal(t, false, payload["is_outdated"])
+	assert.Equal(t, float64(12), payload["line"])
+}
+
+func TestReviewAddCommentCommandRequiresGraphQLReviewID(t *testing.T) {
+	originalFactory := apiClientFactory
+	defer func() { apiClientFactory = originalFactory }()
+
+	fake := &commandFakeAPI{}
+	fake.graphqlFunc = func(query string, variables map[string]interface{}, result interface{}) error {
+		return errors.New("unexpected graphql invocation")
+	}
+	apiClientFactory = func(host string) ghcli.API { return fake }
+
+	root := newRootCommand()
+	root.SetOut(&bytes.Buffer{})
+	root.SetErr(&bytes.Buffer{})
+	root.SetArgs([]string{"review", "--add-comment", "--review-id", "123", "--path", "scenario.md", "--line", "12", "--body", "note", "octo/demo#7"})
+
+	err := root.Execute()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "GraphQL node id")
 }
 
 func TestReviewSubmitCommand(t *testing.T) {

@@ -31,48 +31,117 @@ func (f *fakeAPI) GraphQL(query string, variables map[string]interface{}, result
 
 func TestServiceStart(t *testing.T) {
 	api := &fakeAPI{}
-	api.restFunc = func(method, path string, params map[string]string, body interface{}, result interface{}) error {
-		if path == "repos/octo/demo/pulls/7" {
-			payload := map[string]interface{}{"node_id": "PR_node", "head": map[string]interface{}{"sha": "abc123"}}
-			return assign(result, payload)
-		}
-		return errors.New("unexpected path")
-	}
+	call := 0
 	api.graphqlFunc = func(query string, variables map[string]interface{}, result interface{}) error {
-		payload := map[string]interface{}{
-			"data": map[string]interface{}{
+		call++
+		switch call {
+		case 1:
+			assert.Contains(t, query, "pullRequest(number:$number)")
+			assert.Equal(t, "octo", variables["owner"])
+			assert.Equal(t, "demo", variables["name"])
+			assert.Equal(t, 7, variables["number"])
+			payload := map[string]interface{}{
+				"repository": map[string]interface{}{
+					"pullRequest": map[string]interface{}{
+						"id":         "PRR_node",
+						"headRefOid": "abc123",
+					},
+				},
+			}
+			return assign(result, payload)
+		case 2:
+			assert.Contains(t, query, "addPullRequestReview")
+			input, ok := variables["input"].(map[string]interface{})
+			require.True(t, ok)
+			assert.Equal(t, "PRR_node", input["pullRequestId"])
+			assert.Equal(t, "abc123", input["commitOID"])
+			payload := map[string]interface{}{
 				"addPullRequestReview": map[string]interface{}{
 					"pullRequestReview": map[string]interface{}{
-						"id":          "RV1",
+						"id":          "PRR_review",
 						"state":       "PENDING",
 						"submittedAt": nil,
 						"databaseId":  321,
-						"url":         "https://example.com/review/RV1",
+						"url":         "https://example.com/review/PRR_review",
 					},
 				},
-			},
+			}
+			return assign(result, payload)
+		default:
+			return errors.New("unexpected GraphQL call")
 		}
-		return assign(result, payload)
 	}
 
 	svc := NewService(api)
 	pr := resolver.Identity{Owner: "octo", Repo: "demo", Number: 7, Host: "github.com"}
 	state, err := svc.Start(pr, "")
 	require.NoError(t, err)
-	assert.Equal(t, "RV1", state.ID)
+	assert.Equal(t, "PRR_review", state.ID)
 	assert.Equal(t, "PENDING", state.State)
 	require.NotNil(t, state.DatabaseID)
 	assert.Equal(t, int64(321), *state.DatabaseID)
-	assert.Equal(t, "https://example.com/review/RV1", state.HTMLURL)
+	require.Nil(t, state.SubmittedAt)
+	require.NotNil(t, state.HTMLURL)
+	assert.Equal(t, "https://example.com/review/PRR_review", *state.HTMLURL)
+	assert.Equal(t, 2, call)
+}
+
+func TestServiceStartErrorOnEmptyReview(t *testing.T) {
+	api := &fakeAPI{}
+	step := 0
+	api.graphqlFunc = func(query string, variables map[string]interface{}, result interface{}) error {
+		step++
+		switch step {
+		case 1:
+			payload := map[string]interface{}{
+				"repository": map[string]interface{}{
+					"pullRequest": map[string]interface{}{
+						"id":         "PRR_node",
+						"headRefOid": "abc123",
+					},
+				},
+			}
+			return assign(result, payload)
+		case 2:
+			payload := map[string]interface{}{
+				"addPullRequestReview": map[string]interface{}{
+					"pullRequestReview": map[string]interface{}{
+						"id": " ",
+					},
+				},
+			}
+			return assign(result, payload)
+		default:
+			return errors.New("unexpected GraphQL call")
+		}
+	}
+
+	svc := NewService(api)
+	pr := resolver.Identity{Owner: "octo", Repo: "demo", Number: 7, Host: "github.com"}
+	_, err := svc.Start(pr, "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "addPullRequestReview returned no review data")
 }
 
 func TestServiceAddThread(t *testing.T) {
 	api := &fakeAPI{}
 	api.graphqlFunc = func(query string, variables map[string]interface{}, result interface{}) error {
+		assert.Contains(t, query, "addPullRequestReviewThread")
+		input, ok := variables["input"].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, "PRR_review", input["pullRequestReviewId"])
+		assert.Equal(t, "file.go", input["path"])
+		assert.Equal(t, 10, input["line"])
+		assert.Equal(t, "RIGHT", input["side"])
+		assert.Equal(t, "note", input["body"])
+
 		payload := map[string]interface{}{
-			"data": map[string]interface{}{
-				"addPullRequestReviewThread": map[string]interface{}{
-					"thread": map[string]interface{}{"id": "THREAD1", "path": "file.go", "isOutdated": false},
+			"addPullRequestReviewThread": map[string]interface{}{
+				"thread": map[string]interface{}{
+					"id":         "THR1",
+					"path":       "file.go",
+					"isOutdated": false,
+					"line":       10,
 				},
 			},
 		}
@@ -81,9 +150,54 @@ func TestServiceAddThread(t *testing.T) {
 
 	svc := NewService(api)
 	pr := resolver.Identity{Owner: "octo", Repo: "demo", Number: 7, Host: "github.com"}
-	thread, err := svc.AddThread(pr, ThreadInput{ReviewID: "RV1", Path: "file.go", Line: 10, Side: "RIGHT", Body: "note"})
+	thread, err := svc.AddThread(pr, ThreadInput{ReviewID: " PRR_review ", Path: " file.go ", Line: 10, Side: "RIGHT", Body: " note "})
 	require.NoError(t, err)
-	assert.Equal(t, "THREAD1", thread.ID)
+	assert.Equal(t, "THR1", thread.ID)
+	assert.Equal(t, "file.go", thread.Path)
+	assert.False(t, thread.IsOutdated)
+	require.NotNil(t, thread.Line)
+	assert.Equal(t, 10, *thread.Line)
+}
+
+func TestServiceAddThreadErrorsOnIncompleteResponse(t *testing.T) {
+	api := &fakeAPI{}
+	api.graphqlFunc = func(query string, variables map[string]interface{}, result interface{}) error {
+		payload := map[string]interface{}{
+			"addPullRequestReviewThread": map[string]interface{}{
+				"thread": map[string]interface{}{
+					"id":   "",
+					"path": "file.go",
+				},
+			},
+		}
+		return assign(result, payload)
+	}
+
+	svc := NewService(api)
+	pr := resolver.Identity{Owner: "octo", Repo: "demo", Number: 7, Host: "github.com"}
+	_, err := svc.AddThread(pr, ThreadInput{ReviewID: "PRR_review", Path: "file.go", Line: 10, Side: "RIGHT", Body: "note"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "returned incomplete thread data")
+}
+
+func TestServiceAddThreadRequiresGraphQLReviewID(t *testing.T) {
+	api := &fakeAPI{}
+	svc := NewService(api)
+	pr := resolver.Identity{Owner: "octo", Repo: "demo", Number: 7, Host: "github.com"}
+
+	_, err := svc.AddThread(pr, ThreadInput{ReviewID: "511", Path: "file.go", Line: 10, Side: "RIGHT", Body: "note"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "GraphQL node id")
+}
+
+func TestServiceAddThreadRequiresPath(t *testing.T) {
+	api := &fakeAPI{}
+	svc := NewService(api)
+	pr := resolver.Identity{Owner: "octo", Repo: "demo", Number: 7, Host: "github.com"}
+
+	_, err := svc.AddThread(pr, ThreadInput{ReviewID: "PRR_review", Path: "", Line: 10, Side: "RIGHT", Body: "note"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "path is required")
 }
 
 func TestServiceSubmit(t *testing.T) {
@@ -128,7 +242,8 @@ func TestServiceSubmit(t *testing.T) {
 	assert.Equal(t, "2024-05-01T12:00:00Z", *state.SubmittedAt)
 	require.NotNil(t, state.DatabaseID)
 	assert.Equal(t, int64(511), *state.DatabaseID)
-	assert.Equal(t, "https://example.com/review/RV1", state.HTMLURL)
+	require.NotNil(t, state.HTMLURL)
+	assert.Equal(t, "https://example.com/review/RV1", *state.HTMLURL)
 	assert.Equal(t, 2, call)
 }
 
