@@ -114,6 +114,14 @@ func executeReviewStart(cmd *cobra.Command, service *reviewsvc.Service, pr resol
 }
 
 func executeReviewAddComment(cmd *cobra.Command, service *reviewsvc.Service, pr resolver.Identity, opts *reviewOptions) error {
+	reviewID := strings.TrimSpace(opts.ReviewID)
+	if reviewID == "" {
+		return errors.New("--review-id is required")
+	}
+	if !strings.HasPrefix(reviewID, "PRR_") {
+		return fmt.Errorf("invalid --review-id %q: must be a GraphQL node id (PRR_...)", opts.ReviewID)
+	}
+
 	side, err := normalizeSide(opts.Side)
 	if err != nil {
 		return err
@@ -132,7 +140,7 @@ func executeReviewAddComment(cmd *cobra.Command, service *reviewsvc.Service, pr 
 	}
 
 	input := reviewsvc.ThreadInput{
-		ReviewID:  strings.TrimSpace(opts.ReviewID),
+		ReviewID:  reviewID,
 		Path:      strings.TrimSpace(opts.Path),
 		Line:      opts.Line,
 		Side:      side,
