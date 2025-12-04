@@ -111,6 +111,7 @@ func (s *Service) LatestSubmitted(pr resolver.Identity, opts LatestOptions) (*Re
 
 type restReview struct {
 	ID                int64      `json:"id"`
+	NodeID            string     `json:"node_id"`
 	State             string     `json:"state"`
 	SubmittedAt       *time.Time `json:"submitted_at"`
 	AuthorAssociation string     `json:"author_association"`

@@ -111,6 +111,8 @@ func TestServiceSubmit(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "RV1", state.ID)
 	assert.Equal(t, "COMMENTED", state.State)
+	require.NotNil(t, state.SubmittedAt)
+	assert.Equal(t, "2024-05-01T12:00:00Z", *state.SubmittedAt)
 	require.NotNil(t, state.DatabaseID)
 	assert.Equal(t, int64(654), *state.DatabaseID)
 	assert.Equal(t, "https://example.com/review/RV1", state.HTMLURL)

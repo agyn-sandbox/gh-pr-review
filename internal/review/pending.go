@@ -15,8 +15,18 @@ type PendingOptions struct {
 	Page     int
 }
 
+// PendingSummary captures pending review metadata for output.
+type PendingSummary struct {
+	ID                string      `json:"id"`
+	DatabaseID        int64       `json:"database_id"`
+	State             string      `json:"state"`
+	AuthorAssociation string      `json:"author_association,omitempty"`
+	HTMLURL           string      `json:"html_url,omitempty"`
+	User              *ReviewUser `json:"user,omitempty"`
+}
+
 // LatestPending locates the most recent pending review for the requested reviewer.
-func (s *Service) LatestPending(pr resolver.Identity, opts PendingOptions) (*ReviewSummary, error) {
+func (s *Service) LatestPending(pr resolver.Identity, opts PendingOptions) (*PendingSummary, error) {
 	reviewer := strings.TrimSpace(opts.Reviewer)
 	if reviewer == "" {
 		login, err := s.currentLogin()
@@ -74,8 +84,14 @@ func (s *Service) LatestPending(pr resolver.Identity, opts PendingOptions) (*Rev
 		return nil, fmt.Errorf("no pending reviews for %s", reviewer)
 	}
 
-	summary := ReviewSummary{
-		ID:                latestPending.ID,
+	nodeID := strings.TrimSpace(latestPending.NodeID)
+	if nodeID == "" {
+		return nil, fmt.Errorf("pending review %d missing node identifier", latestPending.ID)
+	}
+
+	summary := PendingSummary{
+		ID:                nodeID,
+		DatabaseID:        latestPending.ID,
 		State:             strings.ToUpper(strings.TrimSpace(latestPending.State)),
 		AuthorAssociation: strings.TrimSpace(latestPending.AuthorAssociation),
 		HTMLURL:           strings.TrimSpace(latestPending.HTMLURL),

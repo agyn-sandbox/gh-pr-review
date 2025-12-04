@@ -101,10 +101,11 @@ func TestReviewSubmitCommand(t *testing.T) {
 			"data": map[string]interface{}{
 				"submitPullRequestReview": map[string]interface{}{
 					"pullRequestReview": map[string]interface{}{
-						"id":         "RV1",
-						"state":      "COMMENTED",
-						"databaseId": 99,
-						"url":        "https://example.com/review/RV1",
+						"id":          "RV1",
+						"state":       "COMMENTED",
+						"submittedAt": "2024-05-01T12:00:00Z",
+						"databaseId":  99,
+						"url":         "https://example.com/review/RV1",
 					},
 				},
 			},
@@ -127,6 +128,8 @@ func TestReviewSubmitCommand(t *testing.T) {
 	var payload map[string]interface{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &payload))
 	assert.Equal(t, "RV1", payload["id"])
+	assert.Equal(t, "COMMENTED", payload["state"])
+	assert.Equal(t, "2024-05-01T12:00:00Z", payload["submitted_at"])
 	assert.Equal(t, float64(99), payload["database_id"])
 	assert.Equal(t, "https://example.com/review/RV1", payload["html_url"])
 }
@@ -197,6 +200,7 @@ func TestReviewPendingIDCommand(t *testing.T) {
 			payload := []map[string]interface{}{
 				{
 					"id":                 15,
+					"node_id":            "R_pending_15",
 					"state":              "PENDING",
 					"author_association": "MEMBER",
 					"html_url":           "https://example.com/pending",
@@ -223,7 +227,8 @@ func TestReviewPendingIDCommand(t *testing.T) {
 
 	var payload map[string]interface{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &payload))
-	assert.Equal(t, float64(15), payload["id"])
+	assert.Equal(t, "R_pending_15", payload["id"])
+	assert.Equal(t, float64(15), payload["database_id"])
 	assert.Equal(t, "PENDING", payload["state"])
 	assert.Equal(t, "https://example.com/pending", payload["html_url"])
 

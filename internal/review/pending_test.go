@@ -23,6 +23,7 @@ func TestLatestPendingDefaultsToAuthenticatedReviewer(t *testing.T) {
 				payload := []map[string]interface{}{
 					{
 						"id":                 5,
+						"node_id":            "R_pending_5",
 						"state":              "PENDING",
 						"author_association": "MEMBER",
 						"html_url":           "https://github.com/octo/demo/pull/7#review-5",
@@ -33,6 +34,7 @@ func TestLatestPendingDefaultsToAuthenticatedReviewer(t *testing.T) {
 					},
 					{
 						"id":                 7,
+						"node_id":            "R_pending_7",
 						"state":              "PENDING",
 						"author_association": "MEMBER",
 						"html_url":           "https://github.com/octo/demo/pull/7#review-7",
@@ -42,9 +44,10 @@ func TestLatestPendingDefaultsToAuthenticatedReviewer(t *testing.T) {
 						},
 					},
 					{
-						"id":    9,
-						"state": "PENDING",
-						"user":  map[string]interface{}{"login": "other"},
+						"id":      9,
+						"node_id": "R_pending_9",
+						"state":   "PENDING",
+						"user":    map[string]interface{}{"login": "other"},
 					},
 				}
 				return assign(result, payload)
@@ -61,7 +64,8 @@ func TestLatestPendingDefaultsToAuthenticatedReviewer(t *testing.T) {
 	summary, err := svc.LatestPending(pr, PendingOptions{})
 	require.NoError(t, err)
 	require.NotNil(t, summary)
-	assert.Equal(t, int64(7), summary.ID)
+	assert.Equal(t, "R_pending_7", summary.ID)
+	assert.Equal(t, int64(7), summary.DatabaseID)
 	assert.Equal(t, "PENDING", summary.State)
 	require.NotNil(t, summary.User)
 	assert.Equal(t, "casey", summary.User.Login)
@@ -81,6 +85,7 @@ func TestLatestPendingWithReviewerOverride(t *testing.T) {
 		payload := []map[string]interface{}{
 			{
 				"id":                 42,
+				"node_id":            "R_pending_42",
 				"state":              "PENDING",
 				"author_association": "CONTRIBUTOR",
 				"html_url":           "https://example.com/review/42",
@@ -98,7 +103,8 @@ func TestLatestPendingWithReviewerOverride(t *testing.T) {
 	summary, err := svc.LatestPending(pr, PendingOptions{Reviewer: "octocat", PerPage: 50, Page: 3})
 	require.NoError(t, err)
 	require.NotNil(t, summary)
-	assert.Equal(t, int64(42), summary.ID)
+	assert.Equal(t, "R_pending_42", summary.ID)
+	assert.Equal(t, int64(42), summary.DatabaseID)
 	require.NotNil(t, summary.User)
 	assert.Equal(t, "octocat", summary.User.Login)
 	assert.Equal(t, int64(202), summary.User.ID)
