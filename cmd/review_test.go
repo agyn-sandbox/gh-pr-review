@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/Agyn-sandbox/gh-pr-review/internal/ghcli"
@@ -135,6 +136,78 @@ func TestReviewSubmitCommand(t *testing.T) {
 	assert.Equal(t, "2024-05-01T12:00:00Z", payload["submitted_at"])
 	assert.Equal(t, float64(99), payload["database_id"])
 	assert.Equal(t, "https://example.com/review/RV1", payload["html_url"])
+}
+
+func TestReviewSubmitCommandFallbackGraphQL(t *testing.T) {
+	originalFactory := apiClientFactory
+	defer func() { apiClientFactory = originalFactory }()
+
+	fake := &commandFakeAPI{}
+	fake.graphqlFunc = func(query string, variables map[string]interface{}, result interface{}) error {
+		switch {
+		case strings.Contains(query, "SubmitPullRequestReview"):
+			payload := obj{
+				"data": obj{
+					"submitPullRequestReview": obj{
+						"pullRequestReview": nil,
+					},
+				},
+			}
+			return assignJSON(result, payload)
+		case strings.Contains(query, "ViewerLogin"):
+			payload := obj{
+				"data": obj{
+					"viewer": obj{
+						"login": "casey",
+					},
+				},
+			}
+			return assignJSON(result, payload)
+		case strings.Contains(query, "LatestNonPendingReview"):
+			payload := obj{
+				"data": obj{
+					"repository": obj{
+						"pullRequest": obj{
+							"reviews": obj{
+								"nodes": objSlice{
+									obj{
+										"id":          "RV_lookup",
+										"state":       "COMMENTED",
+										"submittedAt": "2024-07-04T15:00:00Z",
+										"databaseId":  555,
+										"url":         "https://example.com/review/RV_lookup",
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+			return assignJSON(result, payload)
+		default:
+			return errors.New("unexpected query: " + query)
+		}
+	}
+	apiClientFactory = func(host string) ghcli.API { return fake }
+
+	root := newRootCommand()
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	root.SetOut(stdout)
+	root.SetErr(stderr)
+	root.SetArgs([]string{"review", "--submit", "--review-id", "RV1", "--event", "APPROVE", "octo/demo#7"})
+
+	err := root.Execute()
+	require.NoError(t, err)
+	assert.Empty(t, stderr.String())
+
+	var payload map[string]interface{}
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &payload))
+	assert.Equal(t, "RV_lookup", payload["id"])
+	assert.Equal(t, "COMMENTED", payload["state"])
+	assert.Equal(t, "2024-07-04T15:00:00Z", payload["submitted_at"])
+	assert.Equal(t, float64(555), payload["database_id"])
+	assert.Equal(t, "https://example.com/review/RV_lookup", payload["html_url"])
 }
 
 func TestReviewSubmitCommandFallsBackToREST(t *testing.T) {

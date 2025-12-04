@@ -77,26 +77,6 @@ func (s *Service) PendingSummaries(pr resolver.Identity, opts PendingOptions) ([
 		} `json:"author"`
 	}
 
-	var response struct {
-		Data struct {
-			Viewer struct {
-				Login      string `json:"login"`
-				DatabaseID *int64 `json:"databaseId"`
-			} `json:"viewer"`
-			Repository *struct {
-				PullRequest *struct {
-					Reviews *struct {
-						Nodes    []pendingNode `json:"nodes"`
-						PageInfo struct {
-							HasNextPage bool   `json:"hasNextPage"`
-							EndCursor   string `json:"endCursor"`
-						} `json:"pageInfo"`
-					} `json:"reviews"`
-				} `json:"pullRequest"`
-			} `json:"repository"`
-		} `json:"data"`
-	}
-
 	type timedSummary struct {
 		summary PendingSummary
 		when    time.Time
@@ -106,6 +86,9 @@ func (s *Service) PendingSummaries(pr resolver.Identity, opts PendingOptions) ([
 		timedSummaries []timedSummary
 		cursor         string
 		hasCursor      bool
+		viewerLogin    string
+		viewerID       int64
+		haveViewerID   bool
 	)
 
 	for {
@@ -119,16 +102,44 @@ func (s *Service) PendingSummaries(pr resolver.Identity, opts PendingOptions) ([
 			variables["cursor"] = cursor
 		}
 
+		var response struct {
+			Data struct {
+				Viewer struct {
+					Login      string `json:"login"`
+					DatabaseID *int64 `json:"databaseId"`
+				} `json:"viewer"`
+				Repository *struct {
+					PullRequest *struct {
+						Reviews *struct {
+							Nodes    []pendingNode `json:"nodes"`
+							PageInfo struct {
+								HasNextPage bool   `json:"hasNextPage"`
+								EndCursor   string `json:"endCursor"`
+							} `json:"pageInfo"`
+						} `json:"reviews"`
+					} `json:"pullRequest"`
+				} `json:"repository"`
+			} `json:"data"`
+		}
+
 		if err := s.API.GraphQL(query, variables, &response); err != nil {
 			return nil, "", err
 		}
 
+		login := strings.TrimSpace(response.Data.Viewer.Login)
+		if login != "" {
+			viewerLogin = login
+		}
+		if response.Data.Viewer.DatabaseID != nil {
+			viewerID = *response.Data.Viewer.DatabaseID
+			haveViewerID = true
+		}
+
 		if reviewerFilter == "" {
-			login := strings.TrimSpace(response.Data.Viewer.Login)
-			if login == "" {
+			if viewerLogin == "" {
 				return nil, "", errors.New("viewer login unavailable")
 			}
-			reviewer = login
+			reviewer = viewerLogin
 		} else if reviewer == "" {
 			reviewer = reviewerFilter
 		}
@@ -144,9 +155,13 @@ func (s *Service) PendingSummaries(pr resolver.Identity, opts PendingOptions) ([
 			if filterLogin == "" {
 				continue
 			}
+
 			var authorLogin string
 			if node.Author != nil {
 				authorLogin = strings.TrimSpace(node.Author.Login)
+			}
+			if authorLogin == "" && viewerLogin != "" && strings.EqualFold(viewerLogin, filterLogin) {
+				authorLogin = viewerLogin
 			}
 			if authorLogin == "" || !strings.EqualFold(authorLogin, filterLogin) {
 				continue
@@ -182,6 +197,8 @@ func (s *Service) PendingSummaries(pr resolver.Identity, opts PendingOptions) ([
 			userID := int64(0)
 			if node.Author != nil && node.Author.DatabaseID != nil {
 				userID = *node.Author.DatabaseID
+			} else if haveViewerID && strings.EqualFold(authorLogin, viewerLogin) {
+				userID = viewerID
 			}
 			if authorLogin != "" || userID != 0 {
 				summary.User = &ReviewUser{Login: authorLogin, ID: userID}

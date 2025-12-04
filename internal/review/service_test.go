@@ -3,6 +3,7 @@ package review
 import (
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/Agyn-sandbox/gh-pr-review/internal/resolver"
@@ -118,56 +119,145 @@ func TestServiceSubmit(t *testing.T) {
 	assert.Equal(t, "https://example.com/review/RV1", state.HTMLURL)
 }
 
-func TestServiceSubmitErrorOnMissingReview(t *testing.T) {
-	tests := []struct {
-		name          string
-		response      map[string]interface{}
-		errorContains string
-	}{
-		{
-			name: "null pullRequestReview",
-			response: map[string]interface{}{
+func TestServiceSubmitFallsBackToViewerLookup(t *testing.T) {
+	api := &fakeAPI{}
+	call := 0
+	api.graphqlFunc = func(query string, variables map[string]interface{}, result interface{}) error {
+		call++
+		switch {
+		case strings.Contains(query, "SubmitPullRequestReview"):
+			payload := map[string]interface{}{
 				"data": map[string]interface{}{
 					"submitPullRequestReview": map[string]interface{}{
 						"pullRequestReview": nil,
 					},
 				},
-			},
-			errorContains: "missing pullRequestReview",
-		},
-		{
-			name: "empty review id",
-			response: map[string]interface{}{
+			}
+			return assign(result, payload)
+		case strings.Contains(query, "ViewerLogin"):
+			payload := map[string]interface{}{
 				"data": map[string]interface{}{
-					"submitPullRequestReview": map[string]interface{}{
-						"pullRequestReview": map[string]interface{}{
-							"id":          " ",
-							"state":       "PENDING",
-							"submittedAt": nil,
-							"databaseId":  123,
-							"url":         "https://example.com/review",
+					"viewer": map[string]interface{}{
+						"login": "casey",
+					},
+				},
+			}
+			return assign(result, payload)
+		case strings.Contains(query, "LatestNonPendingReview"):
+			require.Equal(t, "octo", variables["owner"])
+			require.Equal(t, "demo", variables["name"])
+			require.EqualValues(t, 7, variables["number"])
+			require.Equal(t, "casey", variables["author"])
+			payload := map[string]interface{}{
+				"data": map[string]interface{}{
+					"repository": map[string]interface{}{
+						"pullRequest": map[string]interface{}{
+							"reviews": map[string]interface{}{
+								"nodes": []map[string]interface{}{
+									{
+										"id":          " RV99 ",
+										"state":       " APPROVED ",
+										"submittedAt": "2024-07-01T09:00:00Z ",
+										"databaseId":  2024,
+										"url":         " https://example.com/review/RV99 ",
+									},
+								},
+							},
 						},
 					},
 				},
-			},
-			errorContains: "missing review id",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			api := &fakeAPI{}
-			api.graphqlFunc = func(query string, variables map[string]interface{}, result interface{}) error {
-				return assign(result, tc.response)
 			}
-
-			svc := NewService(api)
-			pr := resolver.Identity{Owner: "octo", Repo: "demo", Number: 7, Host: "github.com"}
-			_, err := svc.Submit(pr, SubmitInput{ReviewID: "RV1", Event: "APPROVE"})
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tc.errorContains)
-		})
+			return assign(result, payload)
+		default:
+			return errors.New("unexpected query: " + query)
+		}
 	}
+
+	svc := NewService(api)
+	pr := resolver.Identity{Owner: "octo", Repo: "demo", Number: 7, Host: "github.com"}
+	state, err := svc.Submit(pr, SubmitInput{ReviewID: "RV1", Event: "COMMENT"})
+	require.NoError(t, err)
+	assert.Equal(t, "RV99", state.ID)
+	assert.Equal(t, "APPROVED", state.State)
+	require.NotNil(t, state.SubmittedAt)
+	assert.Equal(t, "2024-07-01T09:00:00Z", *state.SubmittedAt)
+	require.NotNil(t, state.DatabaseID)
+	assert.Equal(t, int64(2024), *state.DatabaseID)
+	assert.Equal(t, "https://example.com/review/RV99", state.HTMLURL)
+	assert.Equal(t, 3, call)
+}
+
+func TestServiceSubmitFallbackMissingReview(t *testing.T) {
+	api := &fakeAPI{}
+	api.graphqlFunc = func(query string, variables map[string]interface{}, result interface{}) error {
+		switch {
+		case strings.Contains(query, "SubmitPullRequestReview"):
+			payload := map[string]interface{}{
+				"data": map[string]interface{}{
+					"submitPullRequestReview": map[string]interface{}{
+						"pullRequestReview": nil,
+					},
+				},
+			}
+			return assign(result, payload)
+		case strings.Contains(query, "ViewerLogin"):
+			payload := map[string]interface{}{
+				"data": map[string]interface{}{
+					"viewer": map[string]interface{}{
+						"login": "octocat",
+					},
+				},
+			}
+			return assign(result, payload)
+		case strings.Contains(query, "LatestNonPendingReview"):
+			payload := map[string]interface{}{
+				"data": map[string]interface{}{
+					"repository": map[string]interface{}{
+						"pullRequest": map[string]interface{}{
+							"reviews": map[string]interface{}{
+								"nodes": []map[string]interface{}{},
+							},
+						},
+					},
+				},
+			}
+			return assign(result, payload)
+		default:
+			return errors.New("unexpected query: " + query)
+		}
+	}
+
+	svc := NewService(api)
+	pr := resolver.Identity{Owner: "octo", Repo: "demo", Number: 7, Host: "github.com"}
+	_, err := svc.Submit(pr, SubmitInput{ReviewID: "RV1", Event: "APPROVE"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no submitted reviews for octocat")
+}
+
+func TestServiceSubmitErrorOnMissingReviewID(t *testing.T) {
+	api := &fakeAPI{}
+	api.graphqlFunc = func(query string, variables map[string]interface{}, result interface{}) error {
+		payload := map[string]interface{}{
+			"data": map[string]interface{}{
+				"submitPullRequestReview": map[string]interface{}{
+					"pullRequestReview": map[string]interface{}{
+						"id":          " ",
+						"state":       "PENDING",
+						"submittedAt": nil,
+						"databaseId":  123,
+						"url":         "https://example.com/review",
+					},
+				},
+			},
+		}
+		return assign(result, payload)
+	}
+
+	svc := NewService(api)
+	pr := resolver.Identity{Owner: "octo", Repo: "demo", Number: 7, Host: "github.com"}
+	_, err := svc.Submit(pr, SubmitInput{ReviewID: "RV1", Event: "APPROVE"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "missing review id")
 }
 
 func assign(result interface{}, payload interface{}) error {

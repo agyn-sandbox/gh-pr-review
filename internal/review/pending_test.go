@@ -8,17 +8,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func int64Ptr(v int64) *int64 { return &v }
+
 type testReviewNode struct {
 	ID                string `json:"id"`
-	DatabaseID        int64  `json:"databaseId"`
+	DatabaseID        *int64 `json:"databaseId"`
 	State             string `json:"state"`
 	AuthorAssociation string `json:"authorAssociation"`
 	URL               string `json:"url"`
 	UpdatedAt         string `json:"updatedAt"`
 	CreatedAt         string `json:"createdAt"`
-	Author            struct {
+	Author            *struct {
 		Login      string `json:"login"`
-		DatabaseID int64  `json:"databaseId"`
+		DatabaseID *int64 `json:"databaseId"`
 	} `json:"author"`
 }
 
@@ -37,29 +39,29 @@ func TestLatestPendingDefaultsToAuthenticatedReviewer(t *testing.T) {
 		nodes := []testReviewNode{
 			{
 				ID:                "R_pending_5",
-				DatabaseID:        5,
+				DatabaseID:        int64Ptr(5),
 				State:             "PENDING",
 				AuthorAssociation: "MEMBER",
 				URL:               "https://github.com/octo/demo/pull/7#review-5",
 				UpdatedAt:         "",
 				CreatedAt:         "2024-06-01T10:00:00Z",
-				Author: struct {
+				Author: &struct {
 					Login      string `json:"login"`
-					DatabaseID int64  `json:"databaseId"`
-				}{Login: "casey", DatabaseID: 101},
+					DatabaseID *int64 `json:"databaseId"`
+				}{Login: "casey", DatabaseID: int64Ptr(101)},
 			},
 			{
 				ID:                "R_pending_7",
-				DatabaseID:        7,
+				DatabaseID:        int64Ptr(7),
 				State:             "PENDING",
 				AuthorAssociation: "MEMBER",
 				URL:               "https://github.com/octo/demo/pull/7#review-7",
 				UpdatedAt:         "2024-06-01T12:00:00Z",
 				CreatedAt:         "2024-06-01T11:00:00Z",
-				Author: struct {
+				Author: &struct {
 					Login      string `json:"login"`
-					DatabaseID int64  `json:"databaseId"`
-				}{Login: "casey", DatabaseID: 101},
+					DatabaseID *int64 `json:"databaseId"`
+				}{Login: "casey", DatabaseID: int64Ptr(101)},
 			},
 		}
 
@@ -145,16 +147,16 @@ func TestLatestPendingWithReviewerOverride(t *testing.T) {
 			nodes := []testReviewNode{
 				{
 					ID:                "R_pending_other",
-					DatabaseID:        9,
+					DatabaseID:        int64Ptr(9),
 					State:             "PENDING",
 					AuthorAssociation: "MEMBER",
 					URL:               "https://example.com/review/9",
 					UpdatedAt:         "2024-06-01T08:00:00Z",
 					CreatedAt:         "2024-06-01T07:00:00Z",
-					Author: struct {
+					Author: &struct {
 						Login      string `json:"login"`
-						DatabaseID int64  `json:"databaseId"`
-					}{Login: "someone", DatabaseID: 404},
+						DatabaseID *int64 `json:"databaseId"`
+					}{Login: "someone", DatabaseID: int64Ptr(404)},
 				},
 			}
 			payload.Data.Repository.PullRequest.Reviews.Nodes = nodes
@@ -167,16 +169,16 @@ func TestLatestPendingWithReviewerOverride(t *testing.T) {
 			nodes := []testReviewNode{
 				{
 					ID:                "R_pending_42",
-					DatabaseID:        42,
+					DatabaseID:        int64Ptr(42),
 					State:             "PENDING",
 					AuthorAssociation: "CONTRIBUTOR",
 					URL:               "https://example.com/review/42",
 					UpdatedAt:         "2024-06-02T12:00:00Z",
 					CreatedAt:         "2024-06-02T11:30:00Z",
-					Author: struct {
+					Author: &struct {
 						Login      string `json:"login"`
-						DatabaseID int64  `json:"databaseId"`
-					}{Login: "octocat", DatabaseID: 202},
+						DatabaseID *int64 `json:"databaseId"`
+					}{Login: "octocat", DatabaseID: int64Ptr(202)},
 				},
 			}
 			payload.Data.Repository.PullRequest.Reviews.Nodes = nodes
@@ -200,6 +202,62 @@ func TestLatestPendingWithReviewerOverride(t *testing.T) {
 	assert.Equal(t, "https://example.com/review/42", summary.HTMLURL)
 	assert.Equal(t, "CONTRIBUTOR", summary.AuthorAssociation)
 	assert.Equal(t, 2, page)
+}
+
+func TestLatestPendingUsesViewerDatabaseID(t *testing.T) {
+	api := &fakeAPI{}
+	api.graphqlFunc = func(query string, variables map[string]interface{}, result interface{}) error {
+		nodes := []testReviewNode{
+			{
+				ID:                "R_pending_viewer",
+				DatabaseID:        int64Ptr(11),
+				State:             "PENDING",
+				AuthorAssociation: "MEMBER",
+				URL:               "https://example.com/review/11",
+				UpdatedAt:         "2024-06-03T10:00:00Z",
+				CreatedAt:         "2024-06-03T09:30:00Z",
+				Author: &struct {
+					Login      string `json:"login"`
+					DatabaseID *int64 `json:"databaseId"`
+				}{Login: "casey", DatabaseID: nil},
+			},
+		}
+
+		payload := struct {
+			Data struct {
+				Viewer struct {
+					Login      string `json:"login"`
+					DatabaseID int64  `json:"databaseId"`
+				} `json:"viewer"`
+				Repository struct {
+					PullRequest struct {
+						Reviews struct {
+							Nodes    []testReviewNode `json:"nodes"`
+							PageInfo struct {
+								HasNextPage bool   `json:"hasNextPage"`
+								EndCursor   string `json:"endCursor"`
+							} `json:"pageInfo"`
+						} `json:"reviews"`
+					} `json:"pullRequest"`
+				} `json:"repository"`
+			} `json:"data"`
+		}{}
+		payload.Data.Viewer.Login = "casey"
+		payload.Data.Viewer.DatabaseID = 101
+		payload.Data.Repository.PullRequest.Reviews.Nodes = nodes
+		payload.Data.Repository.PullRequest.Reviews.PageInfo.HasNextPage = false
+		payload.Data.Repository.PullRequest.Reviews.PageInfo.EndCursor = ""
+		return assign(result, payload)
+	}
+
+	svc := NewService(api)
+	pr := resolver.Identity{Owner: "octo", Repo: "demo", Number: 7, Host: "github.com"}
+	summary, err := svc.LatestPending(pr, PendingOptions{})
+	require.NoError(t, err)
+	require.NotNil(t, summary)
+	require.NotNil(t, summary.User)
+	assert.Equal(t, int64(101), summary.User.ID)
+	assert.Equal(t, "casey", summary.User.Login)
 }
 
 func TestLatestPendingNoMatches(t *testing.T) {

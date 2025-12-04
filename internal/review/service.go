@@ -205,7 +205,7 @@ func (s *Service) Submit(pr resolver.Identity, input SubmitInput) (*ReviewState,
 	raw := response.Data.SubmitPullRequestReview.PullRequestReview
 	trimmedRaw := bytes.TrimSpace(raw)
 	if len(trimmedRaw) == 0 || bytes.Equal(trimmedRaw, []byte("null")) {
-		return nil, errors.New("submit review response missing pullRequestReview")
+		return s.lookupLatestNonPendingByViewer(pr)
 	}
 
 	var review struct {
@@ -243,6 +243,113 @@ func (s *Service) Submit(pr resolver.Identity, input SubmitInput) (*ReviewState,
 		HTMLURL:     htmlURL,
 	}
 	return &state, nil
+}
+
+func (s *Service) lookupLatestNonPendingByViewer(pr resolver.Identity) (*ReviewState, error) {
+	login, err := s.resolveViewerLogin()
+	if err != nil {
+		return nil, err
+	}
+
+	const query = `query LatestNonPendingReview($owner: String!, $name: String!, $number: Int!, $author: String!) {
+  repository(owner: $owner, name: $name) {
+    pullRequest(number: $number) {
+      reviews(last: 1, author: $author, states: [APPROVED, CHANGES_REQUESTED, COMMENTED, DISMISSED]) {
+        nodes {
+          id
+          state
+          submittedAt
+          databaseId
+          url
+        }
+      }
+    }
+  }
+}`
+
+	variables := map[string]interface{}{
+		"owner":  pr.Owner,
+		"name":   pr.Repo,
+		"number": pr.Number,
+		"author": login,
+	}
+
+	var response struct {
+		Data struct {
+			Repository *struct {
+				PullRequest *struct {
+					Reviews *struct {
+						Nodes []struct {
+							ID          string  `json:"id"`
+							State       string  `json:"state"`
+							SubmittedAt *string `json:"submittedAt"`
+							DatabaseID  *int64  `json:"databaseId"`
+							URL         string  `json:"url"`
+						} `json:"nodes"`
+					} `json:"reviews"`
+				} `json:"pullRequest"`
+			} `json:"repository"`
+		} `json:"data"`
+	}
+
+	if err := s.API.GraphQL(query, variables, &response); err != nil {
+		return nil, err
+	}
+
+	repo := response.Data.Repository
+	if repo == nil || repo.PullRequest == nil || repo.PullRequest.Reviews == nil {
+		return nil, fmt.Errorf("pull request %s/%s#%d not found", pr.Owner, pr.Repo, pr.Number)
+	}
+
+	if len(repo.PullRequest.Reviews.Nodes) == 0 {
+		return nil, fmt.Errorf("no submitted reviews for %s", login)
+	}
+
+	review := repo.PullRequest.Reviews.Nodes[0]
+	reviewID := strings.TrimSpace(review.ID)
+	if reviewID == "" {
+		return nil, errors.New("latest review missing id")
+	}
+
+	var submittedAt *string
+	if review.SubmittedAt != nil {
+		trimmed := strings.TrimSpace(*review.SubmittedAt)
+		if trimmed != "" {
+			submittedAt = &trimmed
+		}
+	}
+
+	state := ReviewState{
+		ID:          reviewID,
+		State:       strings.TrimSpace(review.State),
+		SubmittedAt: submittedAt,
+		DatabaseID:  review.DatabaseID,
+		HTMLURL:     strings.TrimSpace(review.URL),
+	}
+	return &state, nil
+}
+
+func (s *Service) resolveViewerLogin() (string, error) {
+	const query = `query ViewerLogin { viewer { login } }`
+
+	var response struct {
+		Data struct {
+			Viewer struct {
+				Login string `json:"login"`
+			} `json:"viewer"`
+		} `json:"data"`
+	}
+
+	if err := s.API.GraphQL(query, nil, &response); err != nil {
+		return "", err
+	}
+
+	login := strings.TrimSpace(response.Data.Viewer.Login)
+	if login == "" {
+		return "", errors.New("viewer login unavailable")
+	}
+
+	return login, nil
 }
 
 func (s *Service) pullRequestIdentifiers(pr resolver.Identity) (string, string, error) {
