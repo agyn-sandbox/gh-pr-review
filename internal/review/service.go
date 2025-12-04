@@ -246,7 +246,7 @@ func (s *Service) Submit(pr resolver.Identity, input SubmitInput) (*ReviewState,
 }
 
 func (s *Service) lookupLatestNonPendingByViewer(pr resolver.Identity) (*ReviewState, error) {
-	login, err := s.resolveViewerLogin()
+	login, err := s.currentViewer()
 	if err != nil {
 		return nil, err
 	}
@@ -329,7 +329,7 @@ func (s *Service) lookupLatestNonPendingByViewer(pr resolver.Identity) (*ReviewS
 	return &state, nil
 }
 
-func (s *Service) resolveViewerLogin() (string, error) {
+func (s *Service) currentViewer() (string, error) {
 	const query = `query ViewerLogin { viewer { login } }`
 
 	var response struct {

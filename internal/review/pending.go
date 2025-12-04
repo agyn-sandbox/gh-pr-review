@@ -33,11 +33,17 @@ func (s *Service) PendingSummaries(pr resolver.Identity, opts PendingOptions) ([
 	reviewer := reviewerFilter
 	perPage := clampPerPage(opts.PerPage)
 
+	useViewer := false
+	if reviewer == "" {
+		login, err := s.currentViewer()
+		if err != nil {
+			return nil, "", err
+		}
+		reviewer = login
+		useViewer = true
+	}
+
 	query := `query PendingReviews($owner: String!, $name: String!, $number: Int!, $pageSize: Int!, $cursor: String) {
-  viewer {
-    login
-    databaseId
-  }
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
       reviews(states: [PENDING], first: $pageSize, after: $cursor) {
@@ -51,7 +57,9 @@ func (s *Service) PendingSummaries(pr resolver.Identity, opts PendingOptions) ([
           createdAt
           author {
             login
-            databaseId
+            ... on User {
+              databaseId
+            }
           }
         }
         pageInfo {
@@ -86,9 +94,6 @@ func (s *Service) PendingSummaries(pr resolver.Identity, opts PendingOptions) ([
 		timedSummaries []timedSummary
 		cursor         string
 		hasCursor      bool
-		viewerLogin    string
-		viewerID       int64
-		haveViewerID   bool
 	)
 
 	for {
@@ -104,10 +109,6 @@ func (s *Service) PendingSummaries(pr resolver.Identity, opts PendingOptions) ([
 
 		var response struct {
 			Data struct {
-				Viewer struct {
-					Login      string `json:"login"`
-					DatabaseID *int64 `json:"databaseId"`
-				} `json:"viewer"`
 				Repository *struct {
 					PullRequest *struct {
 						Reviews *struct {
@@ -126,24 +127,6 @@ func (s *Service) PendingSummaries(pr resolver.Identity, opts PendingOptions) ([
 			return nil, "", err
 		}
 
-		login := strings.TrimSpace(response.Data.Viewer.Login)
-		if login != "" {
-			viewerLogin = login
-		}
-		if response.Data.Viewer.DatabaseID != nil {
-			viewerID = *response.Data.Viewer.DatabaseID
-			haveViewerID = true
-		}
-
-		if reviewerFilter == "" {
-			if viewerLogin == "" {
-				return nil, "", errors.New("viewer login unavailable")
-			}
-			reviewer = viewerLogin
-		} else if reviewer == "" {
-			reviewer = reviewerFilter
-		}
-
 		repo := response.Data.Repository
 		if repo == nil || repo.PullRequest == nil || repo.PullRequest.Reviews == nil {
 			return nil, reviewer, fmt.Errorf("pull request %s/%s#%d not found", pr.Owner, pr.Repo, pr.Number)
@@ -160,8 +143,8 @@ func (s *Service) PendingSummaries(pr resolver.Identity, opts PendingOptions) ([
 			if node.Author != nil {
 				authorLogin = strings.TrimSpace(node.Author.Login)
 			}
-			if authorLogin == "" && viewerLogin != "" && strings.EqualFold(viewerLogin, filterLogin) {
-				authorLogin = viewerLogin
+			if authorLogin == "" && useViewer {
+				authorLogin = reviewer
 			}
 			if authorLogin == "" || !strings.EqualFold(authorLogin, filterLogin) {
 				continue
@@ -197,8 +180,6 @@ func (s *Service) PendingSummaries(pr resolver.Identity, opts PendingOptions) ([
 			userID := int64(0)
 			if node.Author != nil && node.Author.DatabaseID != nil {
 				userID = *node.Author.DatabaseID
-			} else if haveViewerID && strings.EqualFold(authorLogin, viewerLogin) {
-				userID = viewerID
 			}
 			if authorLogin != "" || userID != 0 {
 				summary.User = &ReviewUser{Login: authorLogin, ID: userID}

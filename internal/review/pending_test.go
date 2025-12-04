@@ -1,6 +1,7 @@
 package review
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/Agyn-sandbox/gh-pr-review/internal/resolver"
@@ -26,9 +27,23 @@ type testReviewNode struct {
 
 func TestLatestPendingDefaultsToAuthenticatedReviewer(t *testing.T) {
 	api := &fakeAPI{}
-	calls := 0
+	viewerCalls := 0
+	pendingCalls := 0
 	api.graphqlFunc = func(query string, variables map[string]interface{}, result interface{}) error {
-		calls++
+		if strings.Contains(query, "ViewerLogin") {
+			viewerCalls++
+			payload := struct {
+				Data struct {
+					Viewer struct {
+						Login string `json:"login"`
+					} `json:"viewer"`
+				} `json:"data"`
+			}{}
+			payload.Data.Viewer.Login = "casey"
+			return assign(result, payload)
+		}
+
+		pendingCalls++
 		require.Equal(t, "octo", variables["owner"])
 		require.Equal(t, "demo", variables["name"])
 		require.EqualValues(t, 7, variables["number"])
@@ -67,10 +82,6 @@ func TestLatestPendingDefaultsToAuthenticatedReviewer(t *testing.T) {
 
 		payload := struct {
 			Data struct {
-				Viewer struct {
-					Login      string `json:"login"`
-					DatabaseID int64  `json:"databaseId"`
-				} `json:"viewer"`
 				Repository struct {
 					PullRequest struct {
 						Reviews struct {
@@ -84,8 +95,6 @@ func TestLatestPendingDefaultsToAuthenticatedReviewer(t *testing.T) {
 				} `json:"repository"`
 			} `json:"data"`
 		}{}
-		payload.Data.Viewer.Login = "casey"
-		payload.Data.Viewer.DatabaseID = 101
 		payload.Data.Repository.PullRequest.Reviews.Nodes = nodes
 		payload.Data.Repository.PullRequest.Reviews.PageInfo.HasNextPage = false
 		payload.Data.Repository.PullRequest.Reviews.PageInfo.EndCursor = ""
@@ -106,13 +115,17 @@ func TestLatestPendingDefaultsToAuthenticatedReviewer(t *testing.T) {
 	assert.Equal(t, int64(101), summary.User.ID)
 	assert.Equal(t, "https://github.com/octo/demo/pull/7#review-7", summary.HTMLURL)
 	assert.Equal(t, "MEMBER", summary.AuthorAssociation)
-	assert.Equal(t, 1, calls)
+	assert.Equal(t, 1, viewerCalls)
+	assert.Equal(t, 1, pendingCalls)
 }
 
 func TestLatestPendingWithReviewerOverride(t *testing.T) {
 	api := &fakeAPI{}
 	page := 0
 	api.graphqlFunc = func(query string, variables map[string]interface{}, result interface{}) error {
+		if strings.Contains(query, "ViewerLogin") {
+			t.Fatalf("unexpected viewer query")
+		}
 		page++
 		require.Equal(t, "octo", variables["owner"])
 		require.Equal(t, "demo", variables["name"])
@@ -204,9 +217,21 @@ func TestLatestPendingWithReviewerOverride(t *testing.T) {
 	assert.Equal(t, 2, page)
 }
 
-func TestLatestPendingUsesViewerDatabaseID(t *testing.T) {
+func TestLatestPendingAllowsMissingUserID(t *testing.T) {
 	api := &fakeAPI{}
 	api.graphqlFunc = func(query string, variables map[string]interface{}, result interface{}) error {
+		if strings.Contains(query, "ViewerLogin") {
+			payload := struct {
+				Data struct {
+					Viewer struct {
+						Login string `json:"login"`
+					} `json:"viewer"`
+				} `json:"data"`
+			}{}
+			payload.Data.Viewer.Login = "casey"
+			return assign(result, payload)
+		}
+
 		nodes := []testReviewNode{
 			{
 				ID:                "R_pending_viewer",
@@ -225,10 +250,6 @@ func TestLatestPendingUsesViewerDatabaseID(t *testing.T) {
 
 		payload := struct {
 			Data struct {
-				Viewer struct {
-					Login      string `json:"login"`
-					DatabaseID int64  `json:"databaseId"`
-				} `json:"viewer"`
 				Repository struct {
 					PullRequest struct {
 						Reviews struct {
@@ -242,8 +263,6 @@ func TestLatestPendingUsesViewerDatabaseID(t *testing.T) {
 				} `json:"repository"`
 			} `json:"data"`
 		}{}
-		payload.Data.Viewer.Login = "casey"
-		payload.Data.Viewer.DatabaseID = 101
 		payload.Data.Repository.PullRequest.Reviews.Nodes = nodes
 		payload.Data.Repository.PullRequest.Reviews.PageInfo.HasNextPage = false
 		payload.Data.Repository.PullRequest.Reviews.PageInfo.EndCursor = ""
@@ -256,19 +275,27 @@ func TestLatestPendingUsesViewerDatabaseID(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, summary)
 	require.NotNil(t, summary.User)
-	assert.Equal(t, int64(101), summary.User.ID)
 	assert.Equal(t, "casey", summary.User.Login)
+	assert.Zero(t, summary.User.ID)
 }
 
 func TestLatestPendingNoMatches(t *testing.T) {
 	api := &fakeAPI{}
 	api.graphqlFunc = func(query string, variables map[string]interface{}, result interface{}) error {
+		if strings.Contains(query, "ViewerLogin") {
+			payload := struct {
+				Data struct {
+					Viewer struct {
+						Login string `json:"login"`
+					} `json:"viewer"`
+				} `json:"data"`
+			}{}
+			payload.Data.Viewer.Login = "casey"
+			return assign(result, payload)
+		}
+
 		payload := struct {
 			Data struct {
-				Viewer struct {
-					Login      string `json:"login"`
-					DatabaseID int64  `json:"databaseId"`
-				} `json:"viewer"`
 				Repository struct {
 					PullRequest struct {
 						Reviews struct {
@@ -282,8 +309,6 @@ func TestLatestPendingNoMatches(t *testing.T) {
 				} `json:"repository"`
 			} `json:"data"`
 		}{}
-		payload.Data.Viewer.Login = "casey"
-		payload.Data.Viewer.DatabaseID = 101
 		payload.Data.Repository.PullRequest.Reviews.Nodes = []testReviewNode{}
 		payload.Data.Repository.PullRequest.Reviews.PageInfo.HasNextPage = false
 		payload.Data.Repository.PullRequest.Reviews.PageInfo.EndCursor = ""

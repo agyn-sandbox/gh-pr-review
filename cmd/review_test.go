@@ -417,12 +417,19 @@ func TestReviewPendingIDCommand_GraphQLOnly(t *testing.T) {
 
 	fake := &commandFakeAPI{}
 	fake.graphqlFunc = func(query string, variables map[string]interface{}, result interface{}) error {
+		if strings.Contains(query, "ViewerLogin") {
+			payload := obj{
+				"data": obj{
+					"viewer": obj{
+						"login": "casey",
+					},
+				},
+			}
+			return assignJSON(result, payload)
+		}
+
 		payload := obj{
 			"data": obj{
-				"viewer": obj{
-					"login":      "casey",
-					"databaseId": 77,
-				},
 				"repository": obj{
 					"pullRequest": obj{
 						"reviews": obj{
@@ -433,8 +440,7 @@ func TestReviewPendingIDCommand_GraphQLOnly(t *testing.T) {
 									"url":        "https://example.com/review/10",
 									"state":      "PENDING",
 									"author": obj{
-										"login":      "casey",
-										"databaseId": 77,
+										"login": "casey",
 									},
 									"updatedAt": "2024-06-01T12:00:00Z",
 									"createdAt": "2024-06-01T11:00:00Z",
@@ -445,8 +451,7 @@ func TestReviewPendingIDCommand_GraphQLOnly(t *testing.T) {
 									"url":        "https://example.com/review/22",
 									"state":      "PENDING",
 									"author": obj{
-										"login":      "casey",
-										"databaseId": 77,
+										"login": "casey",
 									},
 									"updatedAt": "2024-06-01T13:00:00Z",
 									"createdAt": "2024-06-01T12:30:00Z",
@@ -486,5 +491,6 @@ func TestReviewPendingIDCommand_GraphQLOnly(t *testing.T) {
 	user, ok := payload["user"].(obj)
 	require.True(t, ok)
 	assert.Equal(t, "casey", user["login"])
-	assert.Equal(t, float64(77), user["id"])
+	_, hasID := user["id"]
+	assert.False(t, hasID)
 }
