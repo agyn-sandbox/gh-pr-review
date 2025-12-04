@@ -1,103 +1,114 @@
-# GitHub gh – Pull Request Review Guide
-> Commands used: `gh pr review --start`, `gh pr review --add-comment`, `gh pr review --submit`, `gh pr-review comments ids`, `gh pr-review comments reply`, `gh pr-review threads find`, `gh pr-review threads resolve`, `gh pr-review threads unresolve`
+# MCP Review Guide (gh-pr-review v1.3.1)
 
-This workflow creates a pending review, adds one or more review comments (inline or file-level), and then submits the review with a final decision. All outputs are JSON-only by default; no `--json` flag is required.
+This guide describes how to run end-to-end pull request reviews using the gh-pr-review extension with strict single-backend behavior per command. It is suitable for scripted flows (MCP, automation) and manual use.
 
-## Quick PR overview with gh
-Use these built-in `gh pr` commands when you need fast context before diving
-into review-specific actions.
+## Requirements
+- gh CLI installed and authenticated
+- gh-pr-review v1.3.1
+- Access to the target repository and PR
 
-- View details: `gh pr view -R owner/repo --pr N` (title, description, metadata)
-- View with top-level comments: `gh pr view -R owner/repo --pr N --comments`
-- Structured JSON (built-in `gh` only): `gh pr view -R owner/repo --pr N --json files,reviews,headRefOid --jq '.files[].path'`
-- Inspect changes: `gh pr diff -R owner/repo --pr N` and `gh pr diff -R owner/repo --pr N --name-only`
+Check version:
+```
+gh extension list | grep gh-pr-review
+```
+Expected output shows `v1.3.1`.
 
+### Install/Upgrade
+- Upgrade: `gh extension upgrade Agyn-sandbox/gh-pr-review`
+- If your platform lacks prebuilt binaries (e.g., linux-arm64), build from source:
+```
+# From source tag v1.3.1
+git clone https://github.com/agyn-sandbox/gh-pr-review
+cd gh-pr-review && git checkout v1.3.1
+GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o gh-pr-review .
+cp gh-pr-review ~/.local/share/gh/extensions/gh-pr-review/gh-pr-review
+sed -i 's/v1.3.0/v1.3.1/' ~/.local/share/gh/extensions/gh-pr-review/manifest.yml
+```
+
+## Backend Policy (one backend per command)
+- GraphQL-only:
+  - `review --start` (create a pending review; returns PRR id and enriched fields)
+  - `review --add-comment` (add an inline thread; returns thread fields)
+  - `review pending-id` (fetch latest pending review id for a reviewer)
+  - `review --submit` (status-only JSON; single GraphQL call)
+  - `threads list` / `threads resolve`
+- REST-only:
+  - `comments ids` / `comments reply`
+
+Optional fields are omitted (not `null`). Commands never mix backends.
+
+## Core Review Flow (Scriptable)
+Use these steps to script an end-to-end PR review.
+
+1) Start a pending review (GraphQL-only)
+```
+# Returns PRR id and enriched fields
+gh pr-review review -R owner/repo --pr 123 --start
+# Example output:
+{"id":"PRR_...","state":"PENDING","database_id":3541...,"html_url":"https://github.com/...#pullrequestreview-..."}
+```
+Capture the `id` (PRR_...) for subsequent commands.
+
+2) Add inline comments (GraphQL-only)
+```
+# Add a thread to a file at a specific line and side
+gh pr-review review -R owner/repo --pr 123 \
+  --review-id PRR_... --add-comment \
+  --path scenario.md --line 21 --side RIGHT \
+  --body "Reviewer note"
+# Example output:
+{"id":"PRRT_...","path":"scenario.md","is_outdated":false,"line":21}
+```
+Repeat per comment.
+
+3) List unresolved threads (GraphQL-only)
+```
+# Returns [] when none
+gh pr-review threads list -R owner/repo --pr 123 --unresolved
+```
+
+4) Resolve a thread (GraphQL-only)
+```
+# Mark an inline thread as resolved
+gh pr-review threads resolve -R owner/repo --pr 123 --comment-id <INLINE_COMMENT_ID>
+# Example output:
+{"threadId":"PRRT_...","isResolved":true,"changed":true}
+```
+
+5) Submit review (Status-only, GraphQL-only)
+`review --submit` uses one GraphQL mutation and returns status-only JSON.
+- Success:
+```
+{"status":"Review submitted successfully"}
+```
+- Failure (non-zero exit):
+```
+{"status":"Review submission failed","errors":[{"message":"...","path":[...]}]}
+```
 Notes:
-- Built-in `gh pr` commands require `--json` to emit structured data; the
-  `gh pr-review` extension returns JSON without additional flags.
-- All commands in this guide prefer the `-R owner/repo --pr N` selector format
-  for clarity, but PR URLs and `owner/repo#N` also work.
+- `--review-id` must be a GraphQL review node id (format `PRR_...`).
+- No follow-up fetch; enriched fields (id/state/submitted_at/database_id/html_url) are not returned.
 
-## 1. Create a pending review
-Command:
-- `gh pr review --start -R owner/repo --pr N`
+## Comment Utilities (for Engineers)
+List the latest inline comment IDs for a reviewer and reply:
+```
+# IDs for latest review by a reviewer
+gh pr-review comments ids -R owner/repo --pr 123 --latest --reviewer reviewer_login
 
-Required:
-- `-R owner/repo` – repository selector
-- `--pr N` – pull request number
+# Reply (full payload)
+gh pr-review comments reply -R owner/repo --pr 123 --comment-id <ID> --body "[Engineer] Ack."
 
-Notes:
-- Call this once to start a review session. If a pending review already exists, skip this and go to step 2.
+# Reply (concise)
+gh pr-review comments reply -R owner/repo --pr 123 --comment-id <ID> --body "[Engineer] Ack (concise)." --concise
+```
 
-## 2. Add comments to the pending review
-Command (inline or file-level):
-- Inline (single line):
-  - `gh pr review --add-comment -R owner/repo --pr N --path path/to/file.go --line 45 --body "[minor] Consider renaming this variable for clarity."`
-- Inline (multi-line range):
-  - `gh pr review --add-comment -R owner/repo --pr N --path path/to/file.go --start-line 40 --line 48 --body "[nit] Extract this repeated logic into a helper function."`
-- File-level:
-  - `gh pr review --add-comment -R owner/repo --pr N --path path/to/file.go --body "[major] Please document this module more clearly."`
+## Tips
+- If `pending-id` returns “pull request not found,” pass `--reviewer reviewer_login`.
+- Optional fields are omitted; never expect `null` placeholders.
+- linux-arm64 users should build from source; see Install/Upgrade.
 
-Notes:
-- Every comment body must start with a level indicator: `[major]`, `[minor]`, or `[nit]`.
-- Repeat the add-comment command for each comment you want to include in the same pending review.
-- Use “RIGHT” side implicitly for changed lines in the PR diff (side selection handled internally).
+## Example: Full Script Outline
+- Start → Add comments → List unresolved → Resolve → Submit
+- Capture outputs at each step and persist the PRR id for subsequent commands.
+- Use status-only submit to determine success or failure without additional fetches.
 
-## 2a. Commenting Guidelines
-- Use one comment per distinct issue.
-- Keep ranges as short as possible (ideally ≤5–10 lines) to pinpoint the problem.
-- Use Markdown formatting in comment bodies.
-- Ensure each comment begins with `[major]`, `[minor]`, or `[nit]` to indicate severity/urgency.
-
-## 3. Submit the pending review
-Command:
-- `gh pr review --submit -R owner/repo --pr N --event APPROVE --body "Looks good to me."`
-- `gh pr review --submit -R owner/repo --pr N --event REQUEST_CHANGES --body "Please address the inline comments and add missing tests."`
-- `gh pr review --submit -R owner/repo --pr N --event COMMENT --body "Added general feedback; see comments for details."`
-
-Required:
-- `--event` – one of `APPROVE`, `REQUEST_CHANGES`, `COMMENT`
-
-Additional Rule:
-- If any `[major]` level problem is present in the review comments, you must submit with `REQUEST_CHANGES`.
-
-## 4. Review workflow summary
-1) `gh pr review --start -R owner/repo --pr N` – start a new pending review.
-2) `gh pr review --add-comment ...` – add inline or file-level comments (each body begins with [major]/[minor]/[nit]).
-3) `gh pr review --submit ...` – finalize with `APPROVE`, `REQUEST_CHANGES`, or `COMMENT`.
-
-## Inline comments: list IDs and reply
-- List review comments (IDs + text) for latest review by a reviewer:
-  - `gh pr-review comments ids -R owner/repo --pr N --latest --reviewer reviewer_login`
-- Or for a specific review:
-  - `gh pr-review comments ids owner/repo#N --review_id 3531807471`
-- Reply to a specific comment (use returned ID):
-  - `gh pr-review comments reply -R owner/repo --pr N --comment-id 2582545223 --body "[minor] Acknowledged; will add retry logic."`
-
-Behavior:
-- Output includes `id`, `body`, `user` (login/id), timestamps, `html_url`, and `path/line` when available.
-- Pagination: `--per_page`, `--page`, `--limit`.
-
-## Threads: find from comment and resolve/unresolve
-- Find a thread from a comment ID (returns minimal schema):
-  - `gh pr-review threads find -R owner/repo --pr N --comment_id 2582545223`
-  - Output: `{ "id": "PRRT_...", "isResolved": false }`
-- Resolve a thread (use returned thread id):
-  - `gh pr-review threads resolve -R owner/repo --pr N --thread-id PRRT_...`
-- Unresolve a thread:
-  - `gh pr-review threads unresolve -R owner/repo --pr N --thread-id PRRT_...`
-
-Notes:
-- Thread URL is not exposed in GraphQL; derive navigation via the first comment’s `html_url` if needed (not included in minimal schema).
-- `--mine` filter includes threads you can resolve/unresolve.
-
-## Selector examples
-- `gh pr-review comments ids agyn-sandbox/gh-pr-review-e2e-20251202#4 --review_id 3531807471`
-- `gh pr-review threads find -R agyn-sandbox/gh-pr-review-e2e-20251202 --pr 4 --comment_id 2582545223`
-- `gh pr review --start https://github.com/agyn-sandbox/repo/pull/123`
-
-## Error handling
-- Expect errors like "not found", "permission denied", "invalid selector".
-- Ensure `gh auth status` is green and your token has required scopes for private repos.
-
-All commands return JSON-only outputs with aligned REST/GraphQL field names and emit-only-present policy.
