@@ -85,9 +85,8 @@ type ReportComment struct {
 
 // ThreadReply captures a reply within a thread.
 type ThreadReply struct {
-	CommentNodeID          *string `json:"comment_node_id,omitempty"`
-	InReplyToCommentNodeID *string `json:"in_reply_to_comment_node_id,omitempty"`
-	AuthorLogin            string  `json:"author_login"`
-	Body                   string  `json:"body"`
-	CreatedAt              string  `json:"created_at"`
+	CommentNodeID *string `json:"comment_node_id,omitempty"`
+	AuthorLogin   string  `json:"author_login"`
+	Body          string  `json:"body"`
+	CreatedAt     string  `json:"created_at"`
 }

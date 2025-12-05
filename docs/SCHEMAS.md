@@ -169,15 +169,11 @@ Emitted by `review report`.
     },
     "ThreadReply": {
       "type": "object",
-      "required": ["id", "author_login", "body", "created_at"],
+      "required": ["author_login", "body", "created_at"],
       "properties": {
         "comment_node_id": {
           "type": "string",
           "description": "GraphQL comment node identifier when requested"
-        },
-        "in_reply_to_comment_node_id": {
-          "type": "string",
-          "description": "GraphQL node ID of the parent comment"
         },
         "author_login": {
           "type": "string"
@@ -206,7 +202,7 @@ Default payload from `comments reply`.
   "title": "ReplyComment",
   "type": "object",
   "required": [
-    "id",
+    "comment_node_id",
     "thread_id",
     "thread_is_resolved",
     "thread_is_outdated",
@@ -217,7 +213,7 @@ Default payload from `comments reply`.
     "updated_at"
   ],
   "properties": {
-    "id": {
+    "comment_node_id": {
       "type": "string",
       "description": "GraphQL comment node identifier"
     },
@@ -287,9 +283,9 @@ Minimal payload from `comments reply --concise`.
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "ReplyConcise",
   "type": "object",
-  "required": ["id"],
+  "required": ["comment_node_id"],
   "properties": {
-    "id": {
+    "comment_node_id": {
       "type": "string"
     }
   },

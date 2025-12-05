@@ -38,13 +38,13 @@ func TestBuildReportAggregatesThreads(t *testing.T) {
 		IsOutdated: false,
 		Comments: []report.ThreadComment{
 			{
-				NodeID:            "C301",
-				DatabaseID:        301,
-				Body:              "Parent comment",
-				CreatedAt:         time.Date(2025, 12, 3, 10, 1, 0, 0, time.UTC),
-				AuthorLogin:       "alice",
-				ReviewDatabaseID:  intPtr(101),
-				ReplyToDatabaseID: nil,
+				NodeID:             "C301",
+				DatabaseID:         301,
+				Body:               "Parent comment",
+				CreatedAt:          time.Date(2025, 12, 3, 10, 1, 0, 0, time.UTC),
+				AuthorLogin:        "alice",
+				ReviewDatabaseID:   intPtr(101),
+				ReplyToDatabaseID:  nil,
 				ReplyToCommentNode: nil,
 			},
 			{
@@ -78,13 +78,13 @@ func TestBuildReportAggregatesThreads(t *testing.T) {
 		IsOutdated: false,
 		Comments: []report.ThreadComment{
 			{
-				NodeID:            "C401",
-				DatabaseID:        401,
-				Body:              "Solo parent",
-				CreatedAt:         time.Date(2025, 12, 3, 10, 4, 0, 0, time.UTC),
-				AuthorLogin:       "alice",
-				ReviewDatabaseID:  intPtr(101),
-				ReplyToDatabaseID: nil,
+				NodeID:             "C401",
+				DatabaseID:         401,
+				Body:               "Solo parent",
+				CreatedAt:          time.Date(2025, 12, 3, 10, 4, 0, 0, time.UTC),
+				AuthorLogin:        "alice",
+				ReviewDatabaseID:   intPtr(101),
+				ReplyToDatabaseID:  nil,
 				ReplyToCommentNode: nil,
 			},
 		},
@@ -157,9 +157,6 @@ func TestBuildReportAggregatesThreads(t *testing.T) {
 	}
 	if commentWithIDs.Thread[0].CommentNodeID == nil || *commentWithIDs.Thread[0].CommentNodeID != "C302" {
 		t.Fatalf("expected reply comment_node_id C302, got %v", commentWithIDs.Thread[0].CommentNodeID)
-	}
-	if commentWithIDs.Thread[0].InReplyToCommentNodeID == nil || *commentWithIDs.Thread[0].InReplyToCommentNodeID != "C301" {
-		t.Fatalf("expected reply to reference parent C301, got %v", commentWithIDs.Thread[0].InReplyToCommentNodeID)
 	}
 
 	jsonBytes, err := json.Marshal(result)

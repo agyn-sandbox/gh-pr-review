@@ -101,17 +101,11 @@ func BuildReport(reviews []Review, threads []Thread, filters FilterOptions) Repo
 				replyID := reply.NodeID
 				commentNodeID = &replyID
 			}
-			var inReplyToNodeID *string
-			if filters.IncludeCommentNodeID && reply.ReplyToCommentNode != nil && *reply.ReplyToCommentNode != "" {
-				replyTo := *reply.ReplyToCommentNode
-				inReplyToNodeID = &replyTo
-			}
 			reportReplies[i] = ThreadReply{
-				CommentNodeID:          commentNodeID,
-				InReplyToCommentNodeID: inReplyToNodeID,
-				AuthorLogin:            reply.AuthorLogin,
-				Body:                   reply.Body,
-				CreatedAt:              createdAt,
+				CommentNodeID: commentNodeID,
+				AuthorLogin:   reply.AuthorLogin,
+				Body:          reply.Body,
+				CreatedAt:     createdAt,
 			}
 		}
 

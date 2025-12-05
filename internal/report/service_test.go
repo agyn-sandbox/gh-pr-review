@@ -93,9 +93,6 @@ func TestServiceFetchIncludesCommentNodeID(t *testing.T) {
 	if comment.Thread[0].CommentNodeID == nil || *comment.Thread[0].CommentNodeID == "" {
 		t.Fatalf("expected reply comment node id, got %v", comment.Thread[0].CommentNodeID)
 	}
-	if comment.Thread[0].InReplyToCommentNodeID == nil || *comment.Thread[0].InReplyToCommentNodeID == "" {
-		t.Fatalf("expected reply to include in_reply_to_comment_node_id, got %v", comment.Thread[0].InReplyToCommentNodeID)
-	}
 }
 
 func TestServiceFetchErrorsOnMissingReviewDBID(t *testing.T) {

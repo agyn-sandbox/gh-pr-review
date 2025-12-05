@@ -41,7 +41,7 @@ type ReplyOptions struct {
 
 // Reply represents the normalized GraphQL response after adding a thread reply.
 type Reply struct {
-	ID               string  `json:"id"`
+	CommentNodeID    string  `json:"comment_node_id"`
 	DatabaseID       *int    `json:"database_id,omitempty"`
 	ReviewID         *string `json:"review_id,omitempty"`
 	ReviewDatabaseID *int    `json:"review_database_id,omitempty"`
@@ -134,7 +134,7 @@ func (s *Service) Reply(_ resolver.Identity, opts ReplyOptions) (Reply, error) {
 	}
 
 	reply := Reply{
-		ID:               comment.ID,
+		CommentNodeID:    comment.ID,
 		ThreadID:         comment.PullRequestReviewThread.ID,
 		ThreadIsResolved: comment.PullRequestReviewThread.IsResolved,
 		ThreadIsOutdated: comment.PullRequestReviewThread.IsOutdated,
