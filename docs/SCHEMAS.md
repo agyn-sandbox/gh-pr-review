@@ -1,4 +1,4 @@
-# Output schemas (v1.2.1)
+# Output schemas (v1.3.4)
 
 Optional fields are omitted entirely (never serialized as `null`). Unless noted,
 schemas disallow additional properties to surface unexpected payload changes.
@@ -74,118 +74,126 @@ Produced by `review --add-comment`.
 }
 ```
 
-## PendingSummary
+## ReviewReport
 
-Emitted by `review pending-id`.
+Emitted by `review report`.
 
 ```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "PendingSummary",
+  "title": "ReviewReport",
   "type": "object",
-  "required": ["id", "database_id", "state"],
+  "required": ["reviews"],
   "properties": {
-    "id": {
-      "type": "string",
-      "description": "GraphQL review node identifier"
-    },
-    "database_id": {
-      "type": "integer",
-      "minimum": 1,
-      "description": "REST review identifier"
-    },
-    "state": {
-      "type": "string",
-      "enum": ["PENDING"],
-      "description": "Pending review state"
-    },
-    "author_association": {
-      "type": "string",
-      "description": "GitHub author association (MEMBER, CONTRIBUTOR, …)"
-    },
-    "html_url": {
-      "type": "string",
-      "format": "uri",
-      "description": "Direct link to the review"
-    },
-    "user": {
-      "$ref": "#/$defs/ReviewUser"
+    "reviews": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ReportReview"
+      }
     }
   },
   "additionalProperties": false,
   "$defs": {
-    "ReviewUser": {
+    "ReportReview": {
       "type": "object",
+      "required": ["id", "state", "author_login"],
       "properties": {
-        "login": {
+        "id": {
           "type": "string"
         },
-        "id": {
-          "type": "integer",
-          "minimum": 1
+        "state": {
+          "type": "string",
+          "enum": ["APPROVED", "CHANGES_REQUESTED", "COMMENTED", "DISMISSED"]
+        },
+        "body": {
+          "type": "string"
+        },
+        "submitted_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "author_login": {
+          "type": "string"
+        },
+        "comments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ReportComment"
+          }
         }
       },
       "additionalProperties": false
-    }
-  }
-}
-```
-
-## CommentReference
-
-Returned by `comments ids`.
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "CommentReference",
-  "type": "object",
-  "required": ["id", "body"],
-  "properties": {
-    "id": {
-      "type": "integer",
-      "minimum": 1
     },
-    "body": {
-      "type": "string"
-    },
-    "user": {
-      "$ref": "#/$defs/CommentAuthor"
-    },
-    "author_association": {
-      "type": "string"
-    },
-    "created_at": {
-      "type": "string",
-      "format": "date-time"
-    },
-    "updated_at": {
-      "type": "string",
-      "format": "date-time"
-    },
-    "html_url": {
-      "type": "string",
-      "format": "uri"
-    },
-    "path": {
-      "type": "string"
-    },
-    "line": {
-      "type": "integer",
-      "minimum": 1
-    }
-  },
-  "additionalProperties": false,
-  "$defs": {
-    "CommentAuthor": {
+    "ReportComment": {
       "type": "object",
+      "required": [
+        "id",
+        "path",
+        "author_login",
+        "body",
+        "created_at",
+        "is_resolved",
+        "is_outdated",
+        "thread"
+      ],
       "properties": {
-        "login": {
-          "type": "string"
-        },
         "id": {
           "type": "integer",
           "minimum": 1
+        },
+        "path": {
+          "type": "string"
+        },
+        "line": {
+          "type": ["integer", "null"],
+          "minimum": 1
+        },
+        "author_login": {
+          "type": "string"
+        },
+        "body": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "is_resolved": {
+          "type": "boolean"
+        },
+        "is_outdated": {
+          "type": "boolean"
+        },
+        "thread": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ThreadReply"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ThreadReply": {
+      "type": "object",
+      "required": ["id", "author_login", "body", "created_at"],
+      "properties": {
+        "id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "in_reply_to_id": {
+          "type": ["integer", "null"],
+          "minimum": 1
+        },
+        "author_login": {
+          "type": "string"
+        },
+        "body": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
         }
       },
       "additionalProperties": false

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"strings"
 	"testing"
 
 	"github.com/Agyn-sandbox/gh-pr-review/internal/ghcli"
@@ -13,7 +12,6 @@ import (
 )
 
 type obj = map[string]interface{}
-type objSlice = []map[string]interface{}
 
 func TestReviewStartCommand_GraphQLOnly(t *testing.T) {
 	originalFactory := apiClientFactory
@@ -282,160 +280,4 @@ func TestReviewSubmitCommandHandlesGraphQLErrors(t *testing.T) {
 	first, ok := errorsField[0].(map[string]interface{})
 	require.True(t, ok)
 	assert.Equal(t, "mutation failed", first["message"])
-}
-
-func TestReviewLatestIDCommand(t *testing.T) {
-	originalFactory := apiClientFactory
-	defer func() { apiClientFactory = originalFactory }()
-
-	fake := &commandFakeAPI{}
-	fake.restFunc = func(method, path string, params map[string]string, body interface{}, result interface{}) error {
-		switch path {
-		case "user":
-			return assignJSON(result, map[string]interface{}{"login": "casey"})
-		case "repos/octo/demo/pulls/7/reviews":
-			require.Equal(t, "50", params["per_page"])
-			require.Equal(t, "2", params["page"])
-			payload := []map[string]interface{}{
-				{
-					"id":                 10,
-					"state":              "COMMENTED",
-					"submitted_at":       "2024-06-01T12:00:00Z",
-					"author_association": "MEMBER",
-					"html_url":           "https://example.com/review",
-					"user":               map[string]interface{}{"login": "casey", "id": 77},
-				},
-			}
-			return assignJSON(result, payload)
-		default:
-			return errors.New("unexpected path: " + path)
-		}
-	}
-	apiClientFactory = func(host string) ghcli.API { return fake }
-
-	root := newRootCommand()
-	stdout := &bytes.Buffer{}
-	stderr := &bytes.Buffer{}
-	root.SetOut(stdout)
-	root.SetErr(stderr)
-	root.SetArgs([]string{"review", "latest-id", "--per_page", "50", "--page", "2", "octo/demo#7"})
-
-	err := root.Execute()
-	require.NoError(t, err)
-	assert.Empty(t, stderr.String())
-
-	var payload map[string]interface{}
-	require.NoError(t, json.Unmarshal(stdout.Bytes(), &payload))
-	assert.Equal(t, float64(10), payload["id"])
-	assert.Equal(t, "COMMENTED", payload["state"])
-	assert.Equal(t, "https://example.com/review", payload["html_url"])
-
-	user, ok := payload["user"].(map[string]interface{})
-	require.True(t, ok)
-	assert.Equal(t, "casey", user["login"])
-}
-
-func TestReviewPendingIDCommand(t *testing.T) {
-	originalFactory := apiClientFactory
-	defer func() { apiClientFactory = originalFactory }()
-
-	fake := &commandFakeAPI{}
-	fake.graphqlFunc = func(query string, variables map[string]interface{}, result interface{}) error {
-		if strings.Contains(query, "ViewerLogin") {
-			payload := obj{
-				"data": obj{
-					"viewer": obj{
-						"login": "casey",
-					},
-				},
-			}
-			return assignJSON(result, payload)
-		}
-
-		payload := obj{
-			"data": obj{
-				"repository": obj{
-					"pullRequest": obj{
-						"reviews": obj{
-							"nodes": objSlice{
-								obj{
-									"id":         "PRR_node_old",
-									"databaseId": 10,
-									"url":        "https://example.com/review/10",
-									"state":      "PENDING",
-									"author":     obj{"login": "casey"},
-									"updatedAt":  "2024-06-01T12:00:00Z",
-									"createdAt":  "2024-06-01T11:00:00Z",
-								},
-								obj{
-									"id":         "PRR_node_new",
-									"databaseId": 22,
-									"url":        "https://example.com/review/22",
-									"state":      "PENDING",
-									"author":     obj{"login": "casey"},
-									"updatedAt":  "2024-06-01T13:00:00Z",
-									"createdAt":  "2024-06-01T12:30:00Z",
-								},
-							},
-							"pageInfo": obj{"hasNextPage": false, "endCursor": ""},
-						},
-					},
-				},
-			},
-		}
-		return assignJSON(result, payload)
-	}
-	apiClientFactory = func(host string) ghcli.API { return fake }
-
-	root := newRootCommand()
-	stdout := &bytes.Buffer{}
-	stderr := &bytes.Buffer{}
-	root.SetOut(stdout)
-	root.SetErr(stderr)
-	root.SetArgs([]string{"review", "pending-id", "octo/demo#7"})
-
-	err := root.Execute()
-	require.NoError(t, err)
-	assert.Empty(t, stderr.String())
-
-	var payload obj
-	require.NoError(t, json.Unmarshal(stdout.Bytes(), &payload))
-	assert.Equal(t, "PRR_node_new", payload["id"])
-	assert.Equal(t, float64(22), payload["database_id"])
-	assert.Equal(t, "PENDING", payload["state"])
-	assert.Equal(t, "https://example.com/review/22", payload["html_url"])
-
-	user, ok := payload["user"].(obj)
-	require.True(t, ok)
-	assert.Equal(t, "casey", user["login"])
-}
-
-func TestReviewPendingIDCommandViewerMissing(t *testing.T) {
-	originalFactory := apiClientFactory
-	defer func() { apiClientFactory = originalFactory }()
-
-	fake := &commandFakeAPI{}
-	fake.graphqlFunc = func(query string, variables map[string]interface{}, result interface{}) error {
-		if strings.Contains(query, "ViewerLogin") {
-			payload := obj{
-				"data": obj{
-					"viewer": obj{
-						"login": " ",
-					},
-				},
-			}
-			return assignJSON(result, payload)
-		}
-		return errors.New("unexpected query: " + query)
-	}
-	apiClientFactory = func(host string) ghcli.API { return fake }
-
-	root := newReviewPendingIDCommand()
-	root.SetOut(&bytes.Buffer{})
-	root.SetErr(&bytes.Buffer{})
-	root.SetArgs([]string{"octo/demo#7"})
-
-	err := root.Execute()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "pass --reviewer")
 }

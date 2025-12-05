@@ -34,8 +34,8 @@ gh pr-review review --submit \
 # GraphQL errors emit:
 # { "status": "Review submission failed", "errors": [ ... ] }
 
-# Fetch the latest pending review identifier (GraphQL only)
-gh pr-review review pending-id --reviewer octocat owner/repo#42
+# Summarize reviews and collect comment IDs
+gh pr-review review report --reviewer octocat owner/repo#42
 ```
 
 > **Note:** `--review-id` always expects the GraphQL review node ID (prefixed
@@ -47,8 +47,8 @@ gh pr-review review pending-id --reviewer octocat owner/repo#42
 ## 2. Read and reply to inline comments
 
 ```sh
-# List comment identifiers (IDs + text) for a specific review
-gh pr-review comments ids --review_id 3531807471 --limit 20 owner/repo#42
+# Capture review threads and comment IDs (GraphQL)
+gh pr-review review report --unresolved owner/repo#42
 
 # Reply to a comment by database identifier
 gh pr-review comments reply \
@@ -57,8 +57,8 @@ gh pr-review comments reply \
   owner/repo#42
 ```
 
-Inspect the JSON returned by `comments ids`, select the desired `id`, and supply
-that value as `<comment-id>` when invoking `comments reply`.
+Inspect the JSON returned by `review report`, select the desired comment `id`,
+and supply that value as `<comment-id>` when invoking `comments reply`.
 
 ## 3. Resolve or reopen discussion threads
 

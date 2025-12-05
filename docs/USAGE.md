@@ -1,4 +1,4 @@
-# Usage reference (v1.2.1)
+# Usage reference (v1.3.4)
 
 All commands accept pull request selectors in any GitHub CLI format:
 
@@ -60,32 +60,42 @@ gh pr-review review --add-comment \
 }
 ```
 
-## review pending-id (GraphQL only)
+## review report (GraphQL only)
 
-- **Purpose:** Locate the latest pending review for a reviewer.
+- **Purpose:** Emit a consolidated snapshot of reviews, inline comments, and
+  replies. Use it to discover numeric comment identifiers before replying.
 - **Inputs:**
-  - Optional reviewer login via `--reviewer`.
-  - `--per_page` to adjust GraphQL pagination size (default 100).
-- **Backend:** GitHub GraphQL `pullRequest.reviews(states: [PENDING])` query.
-- **Behavior:**
-  - Defaults to the authenticated viewer. If the viewer login cannot be
-    retrieved, the command fails with guidance to pass `--reviewer`.
-  - Fails when no pending review exists for the requested reviewer.
-- **Output schema:** [`PendingSummary`](SCHEMAS.md#pendingsummary) — required
-  `id`, `database_id`, `state`; optional `author_association`, `html_url`,
-  nested `user` object.
+  - Optional pull request selector argument (`owner/repo#123` or URL).
+  - `--repo` / `--pr` flags when not using the selector shorthand.
+  - Filters: `--reviewer`, `--states`, `--unresolved`, `--not_outdated`,
+    `--tail`.
+- **Backend:** GitHub GraphQL `pullRequest.reviews` query.
+- **Output shape:**
 
 ```sh
-gh pr-review review pending-id --reviewer octocat owner/repo#42
+gh pr-review review report --reviewer octocat --states CHANGES_REQUESTED owner/repo#42
 
 {
-  "id": "PRR_kwDOAAABbcdEFG12",
-  "database_id": 3531807471,
-  "state": "PENDING",
-  "html_url": "https://github.com/owner/repo/pull/42#pullrequestreview-3531807471",
-  "user": { "login": "octocat", "id": 6752317 }
+  "reviews": [
+    {
+      "id": "PRR_kwDOAAABbcdEFG12",
+      "state": "CHANGES_REQUESTED",
+      "author_login": "octocat",
+      "comments": [
+        {
+          "id": 3531807471,
+          "path": "internal/service.go",
+          "body": "nit: prefer helper",
+          "thread": []
+        }
+      ]
+    }
+  ]
 }
 ```
+
+The numeric comment `id` values surfaced in the report feed directly into
+`comments reply`.
 
 ## review --submit (GraphQL only)
 
@@ -122,38 +132,9 @@ gh pr-review review --submit \
 }
 ```
 
-## comments ids (REST)
-
-- **Purpose:** Emit minimal metadata for review comments.
-- **Inputs:**
-  - `--review_id` to target a specific review (mutually exclusive with
-    `--latest`).
-  - `--latest` to resolve the latest submitted review for a reviewer (defaults
-    to the authenticated user; override with `--reviewer`).
-  - Pagination controls: `--limit`, `--per_page`, `--page`.
-- **Backend:** GitHub REST `GET /pulls/{number}/reviews/{id}/comments`.
-- **Output schema:** [`CommentReference`](SCHEMAS.md#commentreference) array.
-
-```sh
-gh pr-review comments ids \
-  --review_id 3531807471 \
-  --limit 2 \
-  owner/repo#42
-
-[
-  {
-    "id": 987654321,
-    "body": "nit: prefer helper",
-    "user": { "login": "octocat", "id": 6752317 },
-    "author_association": "MEMBER",
-    "created_at": "2024-12-19T18:33:10Z",
-    "updated_at": "2024-12-19T18:33:10Z",
-    "html_url": "https://github.com/owner/repo/pull/42#discussion_r987654321",
-    "path": "internal/service.go",
-    "line": 42
-  }
-]
-```
+> **Tip:** `review report` is the preferred way to discover review metadata
+> (pending review IDs, comment IDs, thread state) before mutating threads or
+> replying.
 
 ## comments reply (REST, optional concise mode)
 
