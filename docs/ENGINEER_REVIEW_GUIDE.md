@@ -25,18 +25,22 @@ cp gh-pr-review ~/.local/share/gh/extensions/gh-pr-review/gh-pr-review
 sed -i 's/v1.3.0/v1.3.1/' ~/.local/share/gh/extensions/gh-pr-review/manifest.yml
 ```
 
-## Backend Policy (one backend per command)
-- GraphQL-only:
-  - `review --start` (creates a pending review; returns PRR id and enriched fields)
-  - `review --add-comment` (adds an inline review thread; returns thread fields)
-  - `review pending-id` (fetches latest pending review id for a reviewer)
-  - `review --submit` (status-only JSON; see below)
-  - `threads list` / `threads resolve`
-- REST-only:
-  - `comments ids` / `comments reply`
 
-Optional fields are omitted (not `null`). Commands never mix backends.
+## Command behavior quick reference
+- review --start: create a pending review and return { id, state, database_id?, html_url? }
+- review --add-comment: add an inline thread and return { id, path, is_outdated, line? }
+- review pending-id: return the latest pending review id for a reviewer
+- review --submit: return status-only JSON
+  - Success: { "status": "Review submitted successfully" }
+  - Failure (non-zero exit): { "status": "Review submission failed", "errors": [ { "message": "...", "path": [ ... ] } ] }
+- threads list --unresolved: return [] when none
+- threads resolve: return { threadId, isResolved: true, changed: true }
+- comments ids/reply: list inline comment IDs and reply by ID (supports --concise)
 
+Notes
+- Use --reviewer with pending-id when needed.
+- Optional fields are omitted (never null).
+- Event types for submit (--event): APPROVE (no body), REQUEST_CHANGES (body required), COMMENT (body required).
 ## Viewing Inline Comments
 Use top-level PR view for context:
 ```
