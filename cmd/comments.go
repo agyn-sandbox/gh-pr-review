@@ -64,7 +64,7 @@ func newCommentsReplyCommand(parent *commentsOptions) *cobra.Command {
 	cmd.Flags().StringVar(&opts.ThreadID, "thread-id", "", "Review thread identifier to reply to")
 	cmd.Flags().StringVar(&opts.ReviewID, "review-id", "", "GraphQL review identifier when replying inside a pending review")
 	cmd.Flags().StringVar(&opts.Body, "body", "", "Reply text")
-	cmd.Flags().BoolVar(&opts.Concise, "concise", false, "Emit minimal reply payload { \"id\" }")
+	cmd.Flags().BoolVar(&opts.Concise, "concise", false, "Emit minimal reply payload { \"comment_node_id\" }")
 	_ = cmd.MarkFlagRequired("thread-id")
 	_ = cmd.MarkFlagRequired("body")
 

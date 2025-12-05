@@ -3,6 +3,7 @@ package comments
 import (
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/Agyn-sandbox/gh-pr-review/internal/resolver"
@@ -57,17 +58,36 @@ func TestServiceReply_RejectsBlankBody(t *testing.T) {
 
 func TestServiceReply_SendsMutation(t *testing.T) {
 	api := &fakeAPI{}
+	calls := 0
 	api.graphqlFunc = func(query string, variables map[string]interface{}, result interface{}) error {
-		require.Contains(t, query, "AddPullRequestReviewThreadReply")
-		input, ok := variables["input"].(map[string]interface{})
-		require.True(t, ok)
-		require.Equal(t, "PRRT_thread", input["pullRequestReviewThreadId"])
-		require.Equal(t, "Body text", input["body"])
-		require.Equal(t, "PRR_pending", input["pullRequestReviewId"])
+		calls++
+		switch {
+		case strings.Contains(query, "mutation AddPullRequestReviewThreadReply"):
+			require.NotContains(t, query, "pullRequestReviewThread")
+			input, ok := variables["input"].(map[string]interface{})
+			require.True(t, ok)
+			require.Equal(t, "PRRT_thread", input["pullRequestReviewThreadId"])
+			require.Equal(t, "Body text", input["body"])
+			require.Equal(t, "PRR_pending", input["pullRequestReviewId"])
 
-		payload := map[string]interface{}{
-			"addPullRequestReviewThreadReply": map[string]interface{}{
-				"comment": map[string]interface{}{
+			payload := map[string]interface{}{
+				"addPullRequestReviewThreadReply": map[string]interface{}{
+					"comment": map[string]interface{}{
+						"id":          "PRRC_reply",
+						"body":        "Body text",
+						"publishedAt": "2025-12-03T10:00:00Z",
+						"url":         "https://example.com/comment",
+						"author":      map[string]interface{}{"login": "octocat"},
+					},
+				},
+			}
+			return assign(result, payload)
+		case strings.Contains(query, "query PullRequestReviewCommentDetails"):
+			id, ok := variables["id"].(string)
+			require.True(t, ok)
+			require.Equal(t, "PRRC_reply", id)
+			payload := map[string]interface{}{
+				"node": map[string]interface{}{
 					"id":         "PRRC_reply",
 					"databaseId": 101,
 					"body":       "Body text",
@@ -82,16 +102,26 @@ func TestServiceReply_SendsMutation(t *testing.T) {
 						"databaseId": 202,
 						"state":      "PENDING",
 					},
-					"pullRequestReviewThread": map[string]interface{}{
-						"id":         "PRRT_thread",
-						"isResolved": true,
-						"isOutdated": false,
-					},
 					"replyTo": map[string]interface{}{"id": "PRRC_parent"},
 				},
-			},
+			}
+			return assign(result, payload)
+		case strings.Contains(query, "query PullRequestReviewThreadDetails"):
+			id, ok := variables["id"].(string)
+			require.True(t, ok)
+			require.Equal(t, "PRRT_thread", id)
+			payload := map[string]interface{}{
+				"node": map[string]interface{}{
+					"id":         "PRRT_thread",
+					"isResolved": true,
+					"isOutdated": false,
+				},
+			}
+			return assign(result, payload)
+		default:
+			t.Fatalf("unexpected query: %s", query)
 		}
-		return assign(result, payload)
+		return nil
 	}
 
 	svc := NewService(api)
@@ -125,19 +155,36 @@ func TestServiceReply_SendsMutation(t *testing.T) {
 	if assert.NotNil(t, reply.ReplyToCommentID) {
 		assert.Equal(t, "PRRC_parent", *reply.ReplyToCommentID)
 	}
+	require.Equal(t, 3, calls)
 }
 
 func TestServiceReply_OmitsOptionalFields(t *testing.T) {
 	api := &fakeAPI{}
+	calls := 0
 	api.graphqlFunc = func(query string, variables map[string]interface{}, result interface{}) error {
-		input, ok := variables["input"].(map[string]interface{})
-		require.True(t, ok)
-		_, hasReview := input["pullRequestReviewId"]
-		require.False(t, hasReview)
+		calls++
+		switch {
+		case strings.Contains(query, "mutation AddPullRequestReviewThreadReply"):
+			input, ok := variables["input"].(map[string]interface{})
+			require.True(t, ok)
+			_, hasReview := input["pullRequestReviewId"]
+			require.False(t, hasReview)
 
-		payload := map[string]interface{}{
-			"addPullRequestReviewThreadReply": map[string]interface{}{
-				"comment": map[string]interface{}{
+			payload := map[string]interface{}{
+				"addPullRequestReviewThreadReply": map[string]interface{}{
+					"comment": map[string]interface{}{
+						"id":          "PRRC_reply",
+						"body":        "Ack",
+						"publishedAt": "2025-12-03T10:00:00Z",
+						"url":         "https://example.com/comment",
+						"author":      map[string]interface{}{"login": "octocat"},
+					},
+				},
+			}
+			return assign(result, payload)
+		case strings.Contains(query, "query PullRequestReviewCommentDetails"):
+			payload := map[string]interface{}{
+				"node": map[string]interface{}{
 					"id":                "PRRC_reply",
 					"databaseId":        nil,
 					"body":              "Ack",
@@ -145,19 +192,26 @@ func TestServiceReply_OmitsOptionalFields(t *testing.T) {
 					"path":              "",
 					"url":               "https://example.com/comment",
 					"createdAt":         "2025-12-03T10:00:00Z",
-					"updatedAt":         "2025-12-03T10:05:00Z",
+					"updatedAt":         "2025-12-03T10:00:00Z",
 					"author":            map[string]interface{}{"login": "octocat"},
 					"pullRequestReview": nil,
-					"pullRequestReviewThread": map[string]interface{}{
-						"id":         "PRRT_thread",
-						"isResolved": false,
-						"isOutdated": true,
-					},
-					"replyTo": nil,
+					"replyTo":           nil,
 				},
-			},
+			}
+			return assign(result, payload)
+		case strings.Contains(query, "query PullRequestReviewThreadDetails"):
+			payload := map[string]interface{}{
+				"node": map[string]interface{}{
+					"id":         "PRRT_thread",
+					"isResolved": false,
+					"isOutdated": true,
+				},
+			}
+			return assign(result, payload)
+		default:
+			t.Fatalf("unexpected query: %s", query)
 		}
-		return assign(result, payload)
+		return nil
 	}
 
 	svc := NewService(api)
@@ -177,6 +231,7 @@ func TestServiceReply_OmitsOptionalFields(t *testing.T) {
 	assert.Nil(t, reply.ReviewDatabaseID)
 	assert.Nil(t, reply.ReviewState)
 	assert.Nil(t, reply.ReplyToCommentID)
+	require.Equal(t, 3, calls)
 }
 
 func TestServiceReply_ErrorsOnMissingComment(t *testing.T) {

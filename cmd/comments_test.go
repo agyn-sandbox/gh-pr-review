@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/Agyn-sandbox/gh-pr-review/internal/ghcli"
@@ -53,17 +54,33 @@ func TestCommentsReplyCommand(t *testing.T) {
 	defer func() { apiClientFactory = originalFactory }()
 
 	fake := &commandFakeAPI{}
+	calls := 0
 	fake.graphqlFunc = func(query string, variables map[string]interface{}, result interface{}) error {
-		require.Contains(t, query, "AddPullRequestReviewThreadReply")
-		input, ok := variables["input"].(map[string]interface{})
-		require.True(t, ok)
-		require.Equal(t, "PRRT_thread", input["pullRequestReviewThreadId"])
-		require.Equal(t, "ack", input["body"])
-		require.Equal(t, "PRR_pending", input["pullRequestReviewId"])
+		calls++
+		switch {
+		case strings.Contains(query, "mutation AddPullRequestReviewThreadReply"):
+			require.NotContains(t, query, "pullRequestReviewThread")
+			input, ok := variables["input"].(map[string]interface{})
+			require.True(t, ok)
+			require.Equal(t, "PRRT_thread", input["pullRequestReviewThreadId"])
+			require.Equal(t, "ack", input["body"])
+			require.Equal(t, "PRR_pending", input["pullRequestReviewId"])
 
-		payload := map[string]interface{}{
-			"addPullRequestReviewThreadReply": map[string]interface{}{
-				"comment": map[string]interface{}{
+			payload := map[string]interface{}{
+				"addPullRequestReviewThreadReply": map[string]interface{}{
+					"comment": map[string]interface{}{
+						"id":          "PRRC_reply",
+						"body":        "ack",
+						"publishedAt": "2025-12-03T10:00:00Z",
+						"url":         "https://example.com/comment",
+						"author":      map[string]interface{}{"login": "octocat"},
+					},
+				},
+			}
+			return assignJSON(result, payload)
+		case strings.Contains(query, "query PullRequestReviewCommentDetails"):
+			payload := map[string]interface{}{
+				"node": map[string]interface{}{
 					"id":         "PRRC_reply",
 					"databaseId": 101,
 					"body":       "ack",
@@ -78,16 +95,23 @@ func TestCommentsReplyCommand(t *testing.T) {
 						"databaseId": 202,
 						"state":      "PENDING",
 					},
-					"pullRequestReviewThread": map[string]interface{}{
-						"id":         "PRRT_thread",
-						"isResolved": false,
-						"isOutdated": false,
-					},
 					"replyTo": map[string]interface{}{"id": "PRRC_parent"},
 				},
-			},
+			}
+			return assignJSON(result, payload)
+		case strings.Contains(query, "query PullRequestReviewThreadDetails"):
+			payload := map[string]interface{}{
+				"node": map[string]interface{}{
+					"id":         "PRRT_thread",
+					"isResolved": false,
+					"isOutdated": false,
+				},
+			}
+			return assignJSON(result, payload)
+		default:
+			t.Fatalf("unexpected query: %s", query)
 		}
-		return assignJSON(result, payload)
+		return nil
 	}
 	apiClientFactory = func(host string) ghcli.API { return fake }
 
@@ -118,6 +142,7 @@ func TestCommentsReplyCommand(t *testing.T) {
 	assert.Equal(t, "PRR_pending", payload["review_id"])
 	assert.Equal(t, float64(202), payload["review_database_id"])
 	assert.Equal(t, "PENDING", payload["review_state"])
+	require.Equal(t, 3, calls)
 }
 
 func TestCommentsReplyCommandConcise(t *testing.T) {
@@ -125,18 +150,33 @@ func TestCommentsReplyCommandConcise(t *testing.T) {
 	defer func() { apiClientFactory = originalFactory }()
 
 	fake := &commandFakeAPI{}
+	calls := 0
 	fake.graphqlFunc = func(query string, variables map[string]interface{}, result interface{}) error {
-		require.Contains(t, query, "AddPullRequestReviewThreadReply")
-		input, ok := variables["input"].(map[string]interface{})
-		require.True(t, ok)
-		require.Equal(t, "PRRT_thread", input["pullRequestReviewThreadId"])
-		require.Equal(t, "ack", input["body"])
-		_, hasReview := input["pullRequestReviewId"]
-		require.False(t, hasReview)
+		calls++
+		switch {
+		case strings.Contains(query, "mutation AddPullRequestReviewThreadReply"):
+			input, ok := variables["input"].(map[string]interface{})
+			require.True(t, ok)
+			require.Equal(t, "PRRT_thread", input["pullRequestReviewThreadId"])
+			require.Equal(t, "ack", input["body"])
+			_, hasReview := input["pullRequestReviewId"]
+			require.False(t, hasReview)
 
-		payload := map[string]interface{}{
-			"addPullRequestReviewThreadReply": map[string]interface{}{
-				"comment": map[string]interface{}{
+			payload := map[string]interface{}{
+				"addPullRequestReviewThreadReply": map[string]interface{}{
+					"comment": map[string]interface{}{
+						"id":          "PRRC_reply",
+						"body":        "ack",
+						"publishedAt": "2025-12-03T10:00:00Z",
+						"url":         "https://example.com/comment",
+						"author":      map[string]interface{}{"login": "octocat"},
+					},
+				},
+			}
+			return assignJSON(result, payload)
+		case strings.Contains(query, "query PullRequestReviewCommentDetails"):
+			payload := map[string]interface{}{
+				"node": map[string]interface{}{
 					"id":                "PRRC_reply",
 					"databaseId":        nil,
 					"body":              "ack",
@@ -144,19 +184,26 @@ func TestCommentsReplyCommandConcise(t *testing.T) {
 					"path":              "",
 					"url":               "https://example.com/comment",
 					"createdAt":         "2025-12-03T10:00:00Z",
-					"updatedAt":         "2025-12-03T10:05:00Z",
+					"updatedAt":         "2025-12-03T10:00:00Z",
 					"author":            map[string]interface{}{"login": "octocat"},
 					"pullRequestReview": nil,
-					"pullRequestReviewThread": map[string]interface{}{
-						"id":         "PRRT_thread",
-						"isResolved": true,
-						"isOutdated": false,
-					},
-					"replyTo": nil,
+					"replyTo":           nil,
 				},
-			},
+			}
+			return assignJSON(result, payload)
+		case strings.Contains(query, "query PullRequestReviewThreadDetails"):
+			payload := map[string]interface{}{
+				"node": map[string]interface{}{
+					"id":         "PRRT_thread",
+					"isResolved": true,
+					"isOutdated": false,
+				},
+			}
+			return assignJSON(result, payload)
+		default:
+			t.Fatalf("unexpected query: %s", query)
 		}
-		return assignJSON(result, payload)
+		return nil
 	}
 	apiClientFactory = func(host string) ghcli.API { return fake }
 
@@ -175,6 +222,7 @@ func TestCommentsReplyCommandConcise(t *testing.T) {
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &payload))
 	assert.Equal(t, 1, len(payload))
 	assert.Equal(t, "PRRC_reply", payload["comment_node_id"])
+	require.Equal(t, 3, calls)
 }
 
 func assignJSON(result interface{}, payload interface{}) error {
