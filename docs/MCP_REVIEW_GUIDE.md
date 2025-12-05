@@ -25,18 +25,22 @@ cp gh-pr-review ~/.local/share/gh/extensions/gh-pr-review/gh-pr-review
 sed -i 's/v1.3.0/v1.3.1/' ~/.local/share/gh/extensions/gh-pr-review/manifest.yml
 ```
 
-## Backend Policy (one backend per command)
-- GraphQL-only:
-  - `review --start` (create a pending review; returns PRR id and enriched fields)
-  - `review --add-comment` (add an inline thread; returns thread fields)
-  - `review pending-id` (fetch latest pending review id for a reviewer)
-  - `review --submit` (status-only JSON; single GraphQL call)
-  - `threads list` / `threads resolve`
-- REST-only:
-  - `comments ids` / `comments reply`
 
-Optional fields are omitted (not `null`). Commands never mix backends.
+## Command behavior quick reference
+- review --start: create pending review → returns { id, state, database_id?, html_url? }
+- review --add-comment: add inline thread → returns { id, path, is_outdated, line? }
+- review pending-id: latest pending review id for reviewer
+- review --submit: status-only JSON
+  - Success: { "status": "Review submitted successfully" }
+  - Failure: { "status": "Review submission failed", "errors": [ { "message": "...", "path": [ ... ] } ] }
+- threads list --unresolved: [] when none
+- threads resolve: { threadId, isResolved: true, changed: true }
+- comments ids/reply: list IDs; reply by ID (supports --concise)
 
+Notes
+- Use --reviewer with pending-id when needed.
+- Optional fields omitted (not null).
+- Submit events (--event): APPROVE (no body), REQUEST_CHANGES (body required), COMMENT (body required).
 ## Core Review Flow (Scriptable)
 Use these steps to script an end-to-end PR review.
 
