@@ -27,20 +27,18 @@ sed -i 's/v1.3.0/v1.3.1/' ~/.local/share/gh/extensions/gh-pr-review/manifest.yml
 
 
 ## Command behavior quick reference
-- review --start: create a pending review and return { id, state, database_id?, html_url? }
-- review --add-comment: add an inline thread and return { id, path, is_outdated, line? }
-- review pending-id: return the latest pending review id for a reviewer
-- review --submit: return status-only JSON
-  - Success: { "status": "Review submitted successfully" }
-  - Failure (non-zero exit): { "status": "Review submission failed", "errors": [ { "message": "...", "path": [ ... ] } ] }
-- threads list --unresolved: return [] when none
-- threads resolve: return { threadId, isResolved: true, changed: true }
-- comments ids/reply: list inline comment IDs and reply by ID (supports --concise)
-
-Notes
-- Use --reviewer with pending-id when needed.
-- Optional fields are omitted (never null).
-- Event types for submit (--event): APPROVE (no body), REQUEST_CHANGES (body required), COMMENT (body required).
+- View details: `gh pr view -R owner/repo N` (title, description, metadata)
+- View with top-level comments: `gh pr view -R owner/repo N --comments`
+- Structured JSON (built-in gh only): `gh pr view -R owner/repo N --json files,reviews,headRefOid --jq '.files[].path'`
+- Inspect changes: `gh pr diff -R owner/repo N` and `gh pr diff -R owner/repo N --name-only`
+- Create pending review: `gh pr-review review -R owner/repo --pr N --start` → returns { id, state, database_id?, html_url? }
+- Add inline thread: `gh pr-review review -R owner/repo --pr N --review-id PRR_... --add-comment --path <file> --line <n> --side RIGHT --body "<text>"` → returns { id, path, is_outdated, line? }
+- Latest pending review id: `gh pr-review review pending-id -R owner/repo --pr N --reviewer <login>`
+- Submit pending review: `gh pr-review review -R owner/repo --pr N --review-id PRR_... --event <APPROVE|REQUEST_CHANGES|COMMENT> [--body "<text>"] --submit`
+- Threads (unresolved): `gh pr-review threads list -R owner/repo --pr N --unresolved` → [] when none
+- Resolve thread: `gh pr-review threads resolve -R owner/repo --pr N --comment-id <ID>` → { threadId, isResolved: true, changed: true }
+- List comment IDs: `gh pr-review comments ids -R owner/repo --pr N --latest --reviewer <login>`
+- Reply by ID: `gh pr-review comments reply -R owner/repo --pr N --comment-id <ID> --body "<text>" [--concise]`
 ## Viewing Inline Comments
 Use top-level PR view for context:
 ```
