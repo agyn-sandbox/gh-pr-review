@@ -38,7 +38,7 @@ returns structured JSON that is agent-friendly and omits nullable fields.
       "line": 42,
       "is_resolved": false,
       "is_outdated": false,
-      "thread": [
+      "thread_comments": [
         {
           "id": 3531807472,
           "in_reply_to_id": 3531807471,
@@ -54,7 +54,7 @@ returns structured JSON that is agent-friendly and omits nullable fields.
 
 Optional properties (`body`, `submitted_at`, `line`, `in_reply_to_id`,
 `comments`) are omitted instead of set to `null`. Empty reply arrays are
-serialized as `"thread": []`.
+serialized as `"thread_comments": []`.
 
 ### Filtering cheatsheet
 

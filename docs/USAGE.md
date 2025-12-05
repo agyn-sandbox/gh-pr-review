@@ -92,7 +92,7 @@ gh pr-review review report --reviewer octocat --states CHANGES_REQUESTED owner/r
           "created_at": "2025-12-03T10:00:00Z",
           "is_resolved": false,
           "is_outdated": false,
-          "thread": []
+          "thread_comments": []
         }
       ]
     }
@@ -153,7 +153,7 @@ gh pr-review review --submit \
   - `--review-id`: GraphQL review identifier when replying inside your pending
     review (`PRR_…`).
   - `--body` **(required).**
-  - `--concise`: Emit the minimal `{ "id": "<comment-id>" }` response.
+  - `--concise`: Emit the minimal `{ "comment_node_id": "<comment-id>" }` response.
 - **Backend:** GitHub GraphQL `addPullRequestReviewThreadReply` mutation.
 - **Output schema:**
   - Default: [`ReplyComment`](SCHEMAS.md#replycomment).
@@ -168,7 +168,7 @@ gh pr-review comments reply \
   owner/repo#42
 
 {
-  "id": "PRRC_kwDOAAABbhi7890",
+  "comment_node_id": "PRRC_kwDOAAABbhi7890",
   "database_id": 1122334455,
   "review_id": "PRR_kwDOAAABbcdEFG12",
   "review_database_id": 3531807471,
@@ -194,7 +194,7 @@ gh pr-review comments reply \
   owner/repo#42
 
 {
-  "id": "PRRC_kwDOAAABbhi7890"
+  "comment_node_id": "PRRC_kwDOAAABbhi7890"
 }
 ```
 

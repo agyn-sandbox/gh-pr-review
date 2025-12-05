@@ -42,12 +42,12 @@ func TestReviewReportCommandFiltersOutput(t *testing.T) {
 			ID       string  `json:"id"`
 			Body     *string `json:"body"`
 			Comments []struct {
-				ThreadID      string  `json:"thread_id"`
-				CommentNodeID *string `json:"comment_node_id"`
-				Thread        []struct {
+				ThreadID       string  `json:"thread_id"`
+				CommentNodeID  *string `json:"comment_node_id"`
+				ThreadComments []struct {
 					Body          string  `json:"body"`
 					CommentNodeID *string `json:"comment_node_id"`
-				} `json:"thread"`
+				} `json:"thread_comments"`
 			} `json:"comments"`
 		} `json:"reviews"`
 	}
@@ -74,14 +74,14 @@ func TestReviewReportCommandFiltersOutput(t *testing.T) {
 	if comment.CommentNodeID != nil {
 		t.Fatalf("expected comment_node_id omitted by default, got %v", *comment.CommentNodeID)
 	}
-	if len(comment.Thread) != 1 {
-		t.Fatalf("expected 1 reply after tail filter, got %d", len(comment.Thread))
+	if len(comment.ThreadComments) != 1 {
+		t.Fatalf("expected 1 reply after tail filter, got %d", len(comment.ThreadComments))
 	}
-	if comment.Thread[0].Body != "Reply beta" {
-		t.Fatalf("expected last reply body 'Reply beta', got %s", comment.Thread[0].Body)
+	if comment.ThreadComments[0].Body != "Reply beta" {
+		t.Fatalf("expected last reply body 'Reply beta', got %s", comment.ThreadComments[0].Body)
 	}
-	if comment.Thread[0].CommentNodeID != nil {
-		t.Fatalf("expected reply comment_node_id omitted by default, got %v", *comment.Thread[0].CommentNodeID)
+	if comment.ThreadComments[0].CommentNodeID != nil {
+		t.Fatalf("expected reply comment_node_id omitted by default, got %v", *comment.ThreadComments[0].CommentNodeID)
 	}
 
 	rawStates, ok := fake.variables["states"].([]string)
@@ -125,10 +125,10 @@ func TestReviewReportCommandIncludesCommentNodeID(t *testing.T) {
 	var payload struct {
 		Reviews []struct {
 			Comments []struct {
-				CommentNodeID *string `json:"comment_node_id"`
-				Thread        []struct {
+				CommentNodeID  *string `json:"comment_node_id"`
+				ThreadComments []struct {
 					CommentNodeID *string `json:"comment_node_id"`
-				} `json:"thread"`
+				} `json:"thread_comments"`
 			} `json:"comments"`
 		} `json:"reviews"`
 	}
@@ -142,9 +142,9 @@ func TestReviewReportCommandIncludesCommentNodeID(t *testing.T) {
 	if comment.CommentNodeID == nil || *comment.CommentNodeID == "" {
 		t.Fatalf("expected comment_node_id to be populated, got %v", comment.CommentNodeID)
 	}
-	if len(comment.Thread) > 0 {
-		if comment.Thread[0].CommentNodeID == nil || *comment.Thread[0].CommentNodeID == "" {
-			t.Fatalf("expected reply comment_node_id populated, got %v", comment.Thread[0].CommentNodeID)
+	if len(comment.ThreadComments) > 0 {
+		if comment.ThreadComments[0].CommentNodeID == nil || *comment.ThreadComments[0].CommentNodeID == "" {
+			t.Fatalf("expected reply comment_node_id populated, got %v", comment.ThreadComments[0].CommentNodeID)
 		}
 	}
 }

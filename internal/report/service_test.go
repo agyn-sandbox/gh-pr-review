@@ -46,14 +46,14 @@ func TestServiceFetchShapesReport(t *testing.T) {
 	if comment.CommentNodeID != nil {
 		t.Fatalf("expected comment_node_id omitted by default, got %v", comment.CommentNodeID)
 	}
-	if len(comment.Thread) != 1 {
-		t.Fatalf("expected 1 reply after tail filter, got %d", len(comment.Thread))
+	if len(comment.ThreadComments) != 1 {
+		t.Fatalf("expected 1 reply after tail filter, got %d", len(comment.ThreadComments))
 	}
-	if comment.Thread[0].Body != "Reply beta" {
-		t.Fatalf("expected reply body 'Reply beta', got %s", comment.Thread[0].Body)
+	if comment.ThreadComments[0].Body != "Reply beta" {
+		t.Fatalf("expected reply body 'Reply beta', got %s", comment.ThreadComments[0].Body)
 	}
-	if comment.Thread[0].CommentNodeID != nil {
-		t.Fatalf("expected reply comment_node_id omitted by default, got %v", comment.Thread[0].CommentNodeID)
+	if comment.ThreadComments[0].CommentNodeID != nil {
+		t.Fatalf("expected reply comment_node_id omitted by default, got %v", comment.ThreadComments[0].CommentNodeID)
 	}
 
 	rawStates, ok := fake.lastVariables["states"]
@@ -87,14 +87,11 @@ func TestServiceFetchIncludesCommentNodeID(t *testing.T) {
 	if comment.CommentNodeID == nil || *comment.CommentNodeID != "C301" {
 		t.Fatalf("expected comment_node_id C301, got %v", comment.CommentNodeID)
 	}
-	if len(comment.Thread) == 0 {
+	if len(comment.ThreadComments) == 0 {
 		t.Fatal("expected replies to be present")
 	}
-	if comment.Thread[0].CommentNodeID == nil || *comment.Thread[0].CommentNodeID == "" {
-		t.Fatalf("expected reply comment node id, got %v", comment.Thread[0].CommentNodeID)
-	}
-	if comment.Thread[0].InReplyToCommentNodeID == nil || *comment.Thread[0].InReplyToCommentNodeID == "" {
-		t.Fatalf("expected reply to include in_reply_to_comment_node_id, got %v", comment.Thread[0].InReplyToCommentNodeID)
+	if comment.ThreadComments[0].CommentNodeID == nil || *comment.ThreadComments[0].CommentNodeID == "" {
+		t.Fatalf("expected reply comment node id, got %v", comment.ThreadComments[0].CommentNodeID)
 	}
 }
 

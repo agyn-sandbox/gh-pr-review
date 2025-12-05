@@ -38,13 +38,13 @@ func TestBuildReportAggregatesThreads(t *testing.T) {
 		IsOutdated: false,
 		Comments: []report.ThreadComment{
 			{
-				NodeID:            "C301",
-				DatabaseID:        301,
-				Body:              "Parent comment",
-				CreatedAt:         time.Date(2025, 12, 3, 10, 1, 0, 0, time.UTC),
-				AuthorLogin:       "alice",
-				ReviewDatabaseID:  intPtr(101),
-				ReplyToDatabaseID: nil,
+				NodeID:             "C301",
+				DatabaseID:         301,
+				Body:               "Parent comment",
+				CreatedAt:          time.Date(2025, 12, 3, 10, 1, 0, 0, time.UTC),
+				AuthorLogin:        "alice",
+				ReviewDatabaseID:   intPtr(101),
+				ReplyToDatabaseID:  nil,
 				ReplyToCommentNode: nil,
 			},
 			{
@@ -78,13 +78,13 @@ func TestBuildReportAggregatesThreads(t *testing.T) {
 		IsOutdated: false,
 		Comments: []report.ThreadComment{
 			{
-				NodeID:            "C401",
-				DatabaseID:        401,
-				Body:              "Solo parent",
-				CreatedAt:         time.Date(2025, 12, 3, 10, 4, 0, 0, time.UTC),
-				AuthorLogin:       "alice",
-				ReviewDatabaseID:  intPtr(101),
-				ReplyToDatabaseID: nil,
+				NodeID:             "C401",
+				DatabaseID:         401,
+				Body:               "Solo parent",
+				CreatedAt:          time.Date(2025, 12, 3, 10, 4, 0, 0, time.UTC),
+				AuthorLogin:        "alice",
+				ReviewDatabaseID:   intPtr(101),
+				ReplyToDatabaseID:  nil,
 				ReplyToCommentNode: nil,
 			},
 		},
@@ -116,21 +116,21 @@ func TestBuildReportAggregatesThreads(t *testing.T) {
 	if comment.Line == nil || *comment.Line != 42 {
 		t.Fatalf("expected line 42, got %v", comment.Line)
 	}
-	if len(comment.Thread) != 2 {
-		t.Fatalf("expected 2 replies, got %d", len(comment.Thread))
+	if len(comment.ThreadComments) != 2 {
+		t.Fatalf("expected 2 replies, got %d", len(comment.ThreadComments))
 	}
-	if comment.Thread[0].Body != "First reply" || comment.Thread[1].Body != "Second reply" {
-		t.Fatalf("unexpected reply ordering: %#v", comment.Thread)
+	if comment.ThreadComments[0].Body != "First reply" || comment.ThreadComments[1].Body != "Second reply" {
+		t.Fatalf("unexpected reply ordering: %#v", comment.ThreadComments)
 	}
-	if comment.Thread[0].CommentNodeID != nil || comment.Thread[1].CommentNodeID != nil {
+	if comment.ThreadComments[0].CommentNodeID != nil || comment.ThreadComments[1].CommentNodeID != nil {
 		t.Fatal("expected reply comment_node_id omitted by default")
 	}
 	noReplyComment := mustFindComment(first.Comments, "T2")
 	if noReplyComment.ThreadID != "T2" {
 		t.Fatalf("expected thread T2, got %s", noReplyComment.ThreadID)
 	}
-	if len(noReplyComment.Thread) != 0 {
-		t.Fatalf("expected no replies for comment 401, got %d", len(noReplyComment.Thread))
+	if len(noReplyComment.ThreadComments) != 0 {
+		t.Fatalf("expected no replies for comment 401, got %d", len(noReplyComment.ThreadComments))
 	}
 
 	second := result.Reviews[1]
@@ -152,22 +152,19 @@ func TestBuildReportAggregatesThreads(t *testing.T) {
 	if commentWithIDs.CommentNodeID == nil || *commentWithIDs.CommentNodeID != "C301" {
 		t.Fatalf("expected comment_node_id C301, got %v", commentWithIDs.CommentNodeID)
 	}
-	if len(commentWithIDs.Thread) != 2 {
-		t.Fatalf("expected replies to remain when including node IDs, got %d", len(commentWithIDs.Thread))
+	if len(commentWithIDs.ThreadComments) != 2 {
+		t.Fatalf("expected replies to remain when including node IDs, got %d", len(commentWithIDs.ThreadComments))
 	}
-	if commentWithIDs.Thread[0].CommentNodeID == nil || *commentWithIDs.Thread[0].CommentNodeID != "C302" {
-		t.Fatalf("expected reply comment_node_id C302, got %v", commentWithIDs.Thread[0].CommentNodeID)
-	}
-	if commentWithIDs.Thread[0].InReplyToCommentNodeID == nil || *commentWithIDs.Thread[0].InReplyToCommentNodeID != "C301" {
-		t.Fatalf("expected reply to reference parent C301, got %v", commentWithIDs.Thread[0].InReplyToCommentNodeID)
+	if commentWithIDs.ThreadComments[0].CommentNodeID == nil || *commentWithIDs.ThreadComments[0].CommentNodeID != "C302" {
+		t.Fatalf("expected reply comment_node_id C302, got %v", commentWithIDs.ThreadComments[0].CommentNodeID)
 	}
 
 	jsonBytes, err := json.Marshal(result)
 	if err != nil {
 		t.Fatalf("marshal report: %v", err)
 	}
-	if !strings.Contains(string(jsonBytes), `"thread":[]`) {
-		t.Fatal("expected empty thread array encoded")
+	if !strings.Contains(string(jsonBytes), `"thread_comments":[]`) {
+		t.Fatal("expected empty thread_comments array encoded")
 	}
 	if strings.Contains(string(jsonBytes), `"body":""`) {
 		t.Fatal("expected empty body fields to be omitted from JSON")
@@ -228,11 +225,11 @@ func TestBuildReportFilterOptions(t *testing.T) {
 	if comment.ThreadID != "T2" {
 		t.Fatalf("expected thread ID T2, got %s", comment.ThreadID)
 	}
-	if len(comment.Thread) != 1 {
-		t.Fatalf("expected 1 reply after tail filter, got %d", len(comment.Thread))
+	if len(comment.ThreadComments) != 1 {
+		t.Fatalf("expected 1 reply after tail filter, got %d", len(comment.ThreadComments))
 	}
-	if comment.Thread[0].Body != "Reply2" {
-		t.Fatalf("expected last reply body Reply2, got %s", comment.Thread[0].Body)
+	if comment.ThreadComments[0].Body != "Reply2" {
+		t.Fatalf("expected last reply body Reply2, got %s", comment.ThreadComments[0].Body)
 	}
 	if comment.IsOutdated {
 		t.Fatal("expected is_outdated to be false after filtering")

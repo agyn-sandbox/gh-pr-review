@@ -101,17 +101,11 @@ func BuildReport(reviews []Review, threads []Thread, filters FilterOptions) Repo
 				replyID := reply.NodeID
 				commentNodeID = &replyID
 			}
-			var inReplyToNodeID *string
-			if filters.IncludeCommentNodeID && reply.ReplyToCommentNode != nil && *reply.ReplyToCommentNode != "" {
-				replyTo := *reply.ReplyToCommentNode
-				inReplyToNodeID = &replyTo
-			}
 			reportReplies[i] = ThreadReply{
-				CommentNodeID:          commentNodeID,
-				InReplyToCommentNodeID: inReplyToNodeID,
-				AuthorLogin:            reply.AuthorLogin,
-				Body:                   reply.Body,
-				CreatedAt:              createdAt,
+				CommentNodeID: commentNodeID,
+				AuthorLogin:   reply.AuthorLogin,
+				Body:          reply.Body,
+				CreatedAt:     createdAt,
 			}
 		}
 
@@ -122,20 +116,20 @@ func BuildReport(reviews []Review, threads []Thread, filters FilterOptions) Repo
 			commentNodeID = &id
 		}
 		reportComment := ReportComment{
-			ThreadID:      thread.ID,
-			CommentNodeID: commentNodeID,
-			Path:          thread.Path,
-			Line:          thread.Line,
-			AuthorLogin:   parent.AuthorLogin,
-			Body:          parent.Body,
-			CreatedAt:     createdAt,
-			IsResolved:    thread.IsResolved,
-			IsOutdated:    thread.IsOutdated,
-			Thread:        reportReplies,
+			ThreadID:       thread.ID,
+			CommentNodeID:  commentNodeID,
+			Path:           thread.Path,
+			Line:           thread.Line,
+			AuthorLogin:    parent.AuthorLogin,
+			Body:           parent.Body,
+			CreatedAt:      createdAt,
+			IsResolved:     thread.IsResolved,
+			IsOutdated:     thread.IsOutdated,
+			ThreadComments: reportReplies,
 		}
 
 		if len(reportReplies) == 0 {
-			reportComment.Thread = []ThreadReply{}
+			reportComment.ThreadComments = []ThreadReply{}
 		}
 
 		review := &reportReviews[reviewIdx]

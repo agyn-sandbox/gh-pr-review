@@ -56,7 +56,7 @@ gh pr-review review report agyn/repo#51 \
           "line": 42,
           "is_resolved": false,
           "is_outdated": false,
-          "thread": [
+          "thread_comments": [
             {
               "id": 123456790,
               "in_reply_to_id": 123456789,

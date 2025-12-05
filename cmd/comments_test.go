@@ -124,7 +124,7 @@ func TestCommentsReplyCommand(t *testing.T) {
 
 	var payload map[string]interface{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &payload))
-	assert.Equal(t, "PRRC_reply", payload["id"])
+	assert.Equal(t, "PRRC_reply", payload["comment_node_id"])
 	assert.Equal(t, "ack", payload["body"])
 	assert.Equal(t, "PRRT_thread", payload["thread_id"])
 	assert.Equal(t, "octocat", payload["author_login"])
@@ -213,7 +213,7 @@ func TestCommentsReplyCommandConcise(t *testing.T) {
 	var payload map[string]interface{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &payload))
 	assert.Equal(t, 1, len(payload))
-	assert.Equal(t, "PRRC_reply", payload["id"])
+	assert.Equal(t, "PRRC_reply", payload["comment_node_id"])
 }
 
 func assignJSON(result interface{}, payload interface{}) error {

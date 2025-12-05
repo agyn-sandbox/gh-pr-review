@@ -71,23 +71,22 @@ type ReportReview struct {
 
 // ReportComment contains the shaped parent comment for a thread.
 type ReportComment struct {
-	ThreadID      string        `json:"thread_id"`
-	CommentNodeID *string       `json:"comment_node_id,omitempty"`
-	Path          string        `json:"path"`
-	Line          *int          `json:"line,omitempty"`
-	AuthorLogin   string        `json:"author_login"`
-	Body          string        `json:"body"`
-	CreatedAt     string        `json:"created_at"`
-	IsResolved    bool          `json:"is_resolved"`
-	IsOutdated    bool          `json:"is_outdated"`
-	Thread        []ThreadReply `json:"thread"`
+	ThreadID       string        `json:"thread_id"`
+	CommentNodeID  *string       `json:"comment_node_id,omitempty"`
+	Path           string        `json:"path"`
+	Line           *int          `json:"line,omitempty"`
+	AuthorLogin    string        `json:"author_login"`
+	Body           string        `json:"body"`
+	CreatedAt      string        `json:"created_at"`
+	IsResolved     bool          `json:"is_resolved"`
+	IsOutdated     bool          `json:"is_outdated"`
+	ThreadComments []ThreadReply `json:"thread_comments"`
 }
 
 // ThreadReply captures a reply within a thread.
 type ThreadReply struct {
-	CommentNodeID          *string `json:"comment_node_id,omitempty"`
-	InReplyToCommentNodeID *string `json:"in_reply_to_comment_node_id,omitempty"`
-	AuthorLogin            string  `json:"author_login"`
-	Body                   string  `json:"body"`
-	CreatedAt              string  `json:"created_at"`
+	CommentNodeID *string `json:"comment_node_id,omitempty"`
+	AuthorLogin   string  `json:"author_login"`
+	Body          string  `json:"body"`
+	CreatedAt     string  `json:"created_at"`
 }
