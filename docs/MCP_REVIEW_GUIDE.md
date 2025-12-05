@@ -27,20 +27,18 @@ sed -i 's/v1.3.0/v1.3.1/' ~/.local/share/gh/extensions/gh-pr-review/manifest.yml
 
 
 ## Command behavior quick reference
-- review --start: create pending review → returns { id, state, database_id?, html_url? }
-- review --add-comment: add inline thread → returns { id, path, is_outdated, line? }
-- review pending-id: latest pending review id for reviewer
-- review --submit: status-only JSON
-  - Success: { "status": "Review submitted successfully" }
-  - Failure: { "status": "Review submission failed", "errors": [ { "message": "...", "path": [ ... ] } ] }
-- threads list --unresolved: [] when none
-- threads resolve: { threadId, isResolved: true, changed: true }
-- comments ids/reply: list IDs; reply by ID (supports --concise)
-
-Notes
-- Use --reviewer with pending-id when needed.
-- Optional fields omitted (not null).
-- Submit events (--event): APPROVE (no body), REQUEST_CHANGES (body required), COMMENT (body required).
+- View details: `gh pr view -R owner/repo N` (title, description, metadata)
+- View with top-level comments: `gh pr view -R owner/repo N --comments`
+- Structured JSON (built-in gh only): `gh pr view -R owner/repo N --json files,reviews,headRefOid --jq '.files[].path'`
+- Inspect changes: `gh pr diff -R owner/repo N` and `gh pr diff -R owner/repo N --name-only`
+- Create pending review: `gh pr-review review -R owner/repo --pr N --start` → returns { id, state, database_id?, html_url? }
+- Add inline thread: `gh pr-review review -R owner/repo --pr N --review-id PRR_... --add-comment --path <file> --line <n> --side RIGHT --body "<text>"` → returns { id, path, is_outdated, line? }
+- Latest pending review id: `gh pr-review review pending-id -R owner/repo --pr N --reviewer <login>`
+- Submit pending review: `gh pr-review review -R owner/repo --pr N --review-id PRR_... --event <APPROVE|REQUEST_CHANGES|COMMENT> [--body "<text>"] --submit`
+- Threads (unresolved): `gh pr-review threads list -R owner/repo --pr N --unresolved` → [] when none
+- Resolve thread: `gh pr-review threads resolve -R owner/repo --pr N --comment-id <ID>` → { threadId, isResolved: true, changed: true }
+- List comment IDs: `gh pr-review comments ids -R owner/repo --pr N --latest --reviewer <login>`
+- Reply by ID: `gh pr-review comments reply -R owner/repo --pr N --comment-id <ID> --body "<text>" [--concise]`
 ## Core Review Flow (Scriptable)
 Use these steps to script an end-to-end PR review.
 
