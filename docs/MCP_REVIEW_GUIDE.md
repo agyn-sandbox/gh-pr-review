@@ -77,6 +77,29 @@ gh pr-review threads resolve -R owner/repo --pr 123 --comment-id <INLINE_COMMENT
 
 5) Submit review (Status-only, GraphQL-only)
 `review --submit` uses one GraphQL mutation and returns status-only JSON.
+
+Event types (`--event`):
+- `APPROVE` — no body required
+- `REQUEST_CHANGES` — body required (explain requested changes)
+- `COMMENT` — body required (general feedback)
+
+Examples:
+```
+# Approve
+gh pr-review review -R owner/repo --pr 123 \
+  --review-id PRR_... --event APPROVE --submit
+
+# Request changes
+gh pr-review review -R owner/repo --pr 123 \
+  --review-id PRR_... --event REQUEST_CHANGES \
+  --body "Please address the noted issues." --submit
+
+# Comment
+gh pr-review review -R owner/repo --pr 123 \
+  --review-id PRR_... --event COMMENT \
+  --body "General feedback." --submit
+```
+
 - Success:
 ```
 {"status":"Review submitted successfully"}
@@ -111,4 +134,3 @@ gh pr-review comments reply -R owner/repo --pr 123 --comment-id <ID> --body "[En
 - Start → Add comments → List unresolved → Resolve → Submit
 - Capture outputs at each step and persist the PRR id for subsequent commands.
 - Use status-only submit to determine success or failure without additional fetches.
-
