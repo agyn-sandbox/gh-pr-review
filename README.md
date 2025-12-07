@@ -307,9 +307,3 @@ Releases are built using the
 [`cli/gh-extension-precompile`](https://github.com/cli/gh-extension-precompile)
 workflow to publish binaries for macOS, Linux, and Windows.
 
-## Release 1.6.0
-
-- Renamed `review report` to `review view`; update automation to call `gh pr-review review view`.
-- Pull request selectors now accept URLs or numbers with `-R owner/repo`; the `owner/repo#<number>` shorthand was removed.
-- `comments reply` accepts a positional pull request number (still requires `--thread-id` and `--body`).
-- Documentation and examples updated for the new selector format.
