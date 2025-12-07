@@ -140,13 +140,15 @@ The quickest path from opening a pending review to resolving threads:
        "isOutdated": false
      }
    ]
+   ```
 
-gh pr-review threads resolve --thread-id R_ywDoABC123 -R owner/repo 42
-
-{
-  "thread_node_id": "R_ywDoABC123",
-  "is_resolved": true
-}
+   ```sh
+   gh pr-review threads resolve --thread-id R_ywDoABC123 -R owner/repo 42
+   
+   {
+     "thread_node_id": "R_ywDoABC123",
+     "is_resolved": true
+   }
    ```
 
 ## Review view
