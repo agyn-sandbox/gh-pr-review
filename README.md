@@ -1,3 +1,12 @@
+# ⚠️ **DEPRECATED REPOSITORY — PLEASE READ**
+
+This repository is **no longer maintained**.
+
+The **active and fully updated version** of this project is now located here:
+
+👉 **https://github.com/agynio/gh-pr-review**
+
+
 # gh-pr-review
 [![Agyn badge](https://agyn.io/badges/badge_dark.svg)](http://agyn.io)
 
