@@ -169,6 +169,9 @@ func TestBuildReportAggregatesThreads(t *testing.T) {
 	if strings.Contains(string(jsonBytes), `"body":""`) {
 		t.Fatal("expected empty body fields to be omitted from JSON")
 	}
+	if strings.Contains(string(jsonBytes), "in_reply_to_comment_node_id") {
+		t.Fatal("expected replies to omit in_reply_to_comment_node_id")
+	}
 }
 
 func TestBuildReportFilterOptions(t *testing.T) {

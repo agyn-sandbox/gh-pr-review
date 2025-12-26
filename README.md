@@ -238,7 +238,7 @@ gh pr-review review view -R owner/repo --pr 3 --not_outdated --include-comment-n
           "created_at": "…",
           "is_resolved": true,
           "is_outdated": false,
-          "thread": [         // replies only; sorted asc; tail applies
+          "thread_comments": [         // replies only; sorted asc; tail applies
             {
               "comment_node_id": "PRRC_…",  // omitted unless requested
               "author_login": "…",

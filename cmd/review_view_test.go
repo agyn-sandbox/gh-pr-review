@@ -83,6 +83,9 @@ func TestReviewViewCommandFiltersOutput(t *testing.T) {
 	if comment.ThreadComments[0].CommentNodeID != nil {
 		t.Fatalf("expected reply comment_node_id omitted by default, got %v", *comment.ThreadComments[0].CommentNodeID)
 	}
+	if strings.Contains(buf.String(), "in_reply_to_comment_node_id") {
+		t.Fatal("expected replies to omit in_reply_to_comment_node_id")
+	}
 
 	rawStates, ok := fake.variables["states"].([]string)
 	if !ok || len(rawStates) != 2 {
@@ -146,6 +149,9 @@ func TestReviewViewCommandIncludesCommentNodeID(t *testing.T) {
 		if comment.ThreadComments[0].CommentNodeID == nil || *comment.ThreadComments[0].CommentNodeID == "" {
 			t.Fatalf("expected reply comment_node_id populated, got %v", comment.ThreadComments[0].CommentNodeID)
 		}
+	}
+	if strings.Contains(buf.String(), "in_reply_to_comment_node_id") {
+		t.Fatal("expected replies to omit in_reply_to_comment_node_id when including node ids")
 	}
 }
 

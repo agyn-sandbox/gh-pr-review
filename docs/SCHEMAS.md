@@ -169,7 +169,7 @@ Emitted by `review view`.
     },
     "ThreadReply": {
       "type": "object",
-      "required": ["id", "author_login", "body", "created_at"],
+      "required": ["author_login", "body", "created_at"],
       "properties": {
         "comment_node_id": {
           "type": "string",
