@@ -81,10 +81,10 @@ The quickest path from opening a pending review to resolving threads:
          "id": "PRR_kwDOAAABbcdEFG12",
          "state": "COMMENTED",
          "comments": [
-           {
-             "thread_id": "PRRT_kwDOAAABbcdEFG12",
-             "path": "internal/service.go",
-             "body": "nit: prefer helper",
+          {
+            "thread_id": "PRRT_kwDOAAABbcdEFG12",
+            "path": "internal/service.go",
+            "body": "nit: prefer helper",
             "is_resolved": false,
             "is_outdated": false,
             "thread_comments": []
