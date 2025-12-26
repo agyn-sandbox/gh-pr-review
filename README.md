@@ -81,16 +81,16 @@ The quickest path from opening a pending review to resolving threads:
          "id": "PRR_kwDOAAABbcdEFG12",
          "state": "COMMENTED",
          "comments": [
-           {
-             "thread_id": "PRRT_kwDOAAABbcdEFG12",
-             "path": "internal/service.go",
-             "body": "nit: prefer helper",
-             "is_resolved": false,
-             "is_outdated": false,
-             "thread": []
-           }
-         ]
-       }
+          {
+            "thread_id": "PRRT_kwDOAAABbcdEFG12",
+            "path": "internal/service.go",
+            "body": "nit: prefer helper",
+            "is_resolved": false,
+            "is_outdated": false,
+            "thread_comments": []
+          }
+        ]
+      }
      ]
    }
    ```
@@ -238,7 +238,7 @@ gh pr-review review view -R owner/repo --pr 3 --not_outdated --include-comment-n
           "created_at": "…",
           "is_resolved": true,
           "is_outdated": false,
-          "thread": [         // replies only; sorted asc; tail applies
+          "thread_comments": [         // replies only; sorted asc; tail applies
             {
               "comment_node_id": "PRRC_…",  // omitted unless requested
               "author_login": "…",
@@ -315,4 +315,3 @@ CGO_ENABLED=0 golangci-lint run
 Releases are built using the
 [`cli/gh-extension-precompile`](https://github.com/cli/gh-extension-precompile)
 workflow to publish binaries for macOS, Linux, and Windows.
-

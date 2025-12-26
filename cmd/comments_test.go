@@ -126,6 +126,8 @@ func TestCommentsReplyCommand(t *testing.T) {
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &payload))
 	require.Len(t, payload, 1)
 	assert.Equal(t, "PRRC_reply", payload["comment_node_id"])
+	_, hasLegacyID := payload["id"]
+	assert.False(t, hasLegacyID, "reply payload should not include legacy id field")
 }
 
 func TestCommentsReplyCommandWithoutReviewID(t *testing.T) {
@@ -202,6 +204,8 @@ func TestCommentsReplyCommandWithoutReviewID(t *testing.T) {
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &payload))
 	require.Len(t, payload, 1)
 	assert.Equal(t, "PRRC_reply", payload["comment_node_id"])
+	_, hasLegacyID := payload["id"]
+	assert.False(t, hasLegacyID, "reply payload should not include legacy id field")
 }
 
 func assignJSON(result interface{}, payload interface{}) error {
