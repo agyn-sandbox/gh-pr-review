@@ -85,12 +85,12 @@ The quickest path from opening a pending review to resolving threads:
              "thread_id": "PRRT_kwDOAAABbcdEFG12",
              "path": "internal/service.go",
              "body": "nit: prefer helper",
-             "is_resolved": false,
-             "is_outdated": false,
-             "thread": []
-           }
-         ]
-       }
+            "is_resolved": false,
+            "is_outdated": false,
+            "thread_comments": []
+          }
+        ]
+      }
      ]
    }
    ```
@@ -315,4 +315,3 @@ CGO_ENABLED=0 golangci-lint run
 Releases are built using the
 [`cli/gh-extension-precompile`](https://github.com/cli/gh-extension-precompile)
 workflow to publish binaries for macOS, Linux, and Windows.
-
